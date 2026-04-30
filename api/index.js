@@ -13,8 +13,8 @@ const RELAY_PATH = normalizeRelayPath(process.env.RELAY_PATH || "");
 const RELAY_KEY = (process.env.RELAY_KEY || "").trim();
 const UPSTREAM_TIMEOUT_MS = parsePositiveInt(process.env.UPSTREAM_TIMEOUT_MS, 120000, 1000);
 const MAX_INFLIGHT = parsePositiveInt(process.env.MAX_INFLIGHT, 24, 1);
-const MAX_UP_BPS = parseNonNegativeInt(process.env.MAX_UP_BPS, 1572864);
-const MAX_DOWN_BPS = parseNonNegativeInt(process.env.MAX_DOWN_BPS, 1572864);
+const MAX_UP_BPS = parseNonNegativeInt(process.env.MAX_UP_BPS, 4587520);
+const MAX_DOWN_BPS = parseNonNegativeInt(process.env.MAX_DOWN_BPS, 4587520);
 
 const ALLOWED_METHODS = new Set(["GET", "HEAD", "POST"]);
 const FORWARD_HEADER_EXACT = new Set([
