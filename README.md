@@ -4,7 +4,7 @@
 
 **نسخه سبک و بهینه‌شده XHTTP Relay روی Node Runtime ورسل**
 
-[![Version](https://img.shields.io/badge/Version-1.0.0--eco-blue.svg?style=for-the-badge)]()
+[![Version](https://img.shields.io/badge/Version-1.3.1--eco-blue.svg?style=for-the-badge)]()
 [![Runtime](https://img.shields.io/badge/Vercel-Node_Runtime-black.svg?style=for-the-badge&logo=vercel)]()
 [![Profile](https://img.shields.io/badge/Profile-ECO_Throttle-2ea44f.svg?style=for-the-badge)]()
 
@@ -13,6 +13,10 @@
 
 📣 **راستی!** خوشحال میشم به کانال تلگرامی من سر بزنید: [B3hnamR@](https://t.me/B3hnamR).
 📌 **نکته مهم:** لطفاً این راهنما رو تا انتها و با دقت بخونید تا موقع ستاپ کردن هیچ مشکلی براتون پیش نیاد.
+
+**🔒 [برای ساخت اکانت، مطالعه این آموزش کاملاً ضروری است: Anti-Ban-Tutorial.md](./Anti-Ban-Tutorial.md)**
+
+**توجه خیلی مهم:** این پروژه به‌خودی‌خود هیچ تاثیری در بن شدن اکانت ندارد؛ عامل بن فقط فرآیند ساخت اکانت است و این موضوع 100% تست شده.
 
 </div>
 
