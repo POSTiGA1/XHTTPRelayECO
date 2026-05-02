@@ -1,15 +1,16 @@
-<div align="center">
+﻿<div align="center">
 
 # 🚀 XHTTP Relay ECO (VrcLIraniCore)
 
 **نسخه سبک و بهینه‌شده XHTTP Relay روی Node Runtime ورسل**
 
-[![Version](https://img.shields.io/badge/Version-1.3.3--eco-blue.svg?style=for-the-badge)]()
+[![Version](https://img.shields.io/badge/Version-1.3.4--eco-blue.svg?style=for-the-badge)]()
 [![Runtime](https://img.shields.io/badge/Vercel-Node_Runtime-black.svg?style=for-the-badge&logo=vercel)]()
 [![Profile](https://img.shields.io/badge/Profile-ECO_Throttle-2ea44f.svg?style=for-the-badge)]()
 
 **داستان این نسخه چیه؟** 
-هدف اصلی نسخه ECO اینه که همون امنیت سفت‌وسخت v1.3 رو داشته باشیم، ولی به سرورهای ورسل فشار نیاریم. تو این نسخه عمداً سرعت رو کنترل (Throttle) کردیم تا مصرف رم و پردازنده پایین بمونه و هزینه‌ها یا ریسک لیمیت شدن اکانت کم بشه.
+<br>
+🟥 **نسخه ECO طوری تیون شده که علاوه بر امنیت سفت‌وسخت v1.3، کم‌هزینه‌ترین رفتار ممکن روی Vercel Pro رو داشته باشه؛ یعنی با کنترل هوشمند Timeout، Inflight، Throttle و Logها، مصرف منابع و هزینه نهایی تا جای ممکن پایین نگه داشته میشه.**
 
 📣 **راستی!** خوشحال میشم به کانال تلگرامی من سر بزنید: [B3hnamR@](https://t.me/B3hnamR).
 📌 **نکته مهم:** لطفاً این راهنما رو تا انتها و با دقت بخونید تا موقع ستاپ کردن هیچ مشکلی براتون پیش نیاد.
@@ -17,6 +18,8 @@
 **🔒 [برای ساخت اکانت، مطالعه این آموزش کاملاً ضروری است: Anti-Ban-Tutorial.md](./Anti-Ban-Tutorial.md)**
 
 **توجه خیلی مهم:** این پروژه به‌خودی‌خود هیچ تاثیری در بن شدن اکانت ندارد؛ عامل بن فقط فرآیند ساخت اکانت است و این موضوع 100% تست شده.
+<br>
+🔴 **توجه خیلی مهم: در حال حاضر استفاده عملی این پروژه فقط روی Vercel Pro در نظر گرفته شده و روی اکانت رایگان (Hobby) پشتیبانی نمی‌شود.**
 
 </div>
 
@@ -29,7 +32,7 @@
 
 ## ✨ تو نسخه ECO چه خبره؟
 
-- ⏱️ **کنترل تایم‌اوت:** `UPSTREAM_TIMEOUT_MS` رو پیش‌فرض گذاشتیم روی `120000` که واسه کانکشن‌های طولانی جواب بده.
+- ⏱️ **کنترل تایم‌اوت:** `UPSTREAM_TIMEOUT_MS` رو پیش‌فرض گذاشتیم روی `25000` که واسه کانکشن‌های طولانی جواب بده.
 - 🛡️ **بستن متدهای اضافه:** فقط با `GET`، `HEAD` و `POST` کار می‌کنه تا امنیت بالاتر بره.
 - 🧹 **تمیزکاری هدرها:** هدرهای اضافی پلتفرم و hop-by-hop رو بی‌رحمانه فیلتر می‌کنیم.
 - 🔑 **قفل امنیتی:** احراز هویت فقط از طریق هدر `x-relay-key` انجام میشه (توی کوئری دیگه قبول نمی‌کنه).
@@ -66,6 +69,7 @@
 - لیست پروژه‌های اکانت Vercel رو می‌خونه تا پروژه موجود انتخاب کنی یا NEW بسازی.
 - متغیرهای محیطی (ENV) رو اتوماتیک روی `production` ست می‌کنه.
 - دیپلوی نهایی رو انجام میده و همونجا لینک نهایی سایت رو تحویلت میده.
+- دیفالت اقتصادی `v1.3.4` رو هم اعمال می‌کنه: `MAX_INFLIGHT=128`، `MAX_UP_BPS=2621440`، `MAX_DOWN_BPS=2621440`، `UPSTREAM_TIMEOUT_MS=25000` و ENVهای کنترل لاگ (`SUCCESS_LOG_SAMPLE_RATE`، `SUCCESS_LOG_MIN_DURATION_MS`، `ERROR_LOG_MIN_INTERVAL_MS`).
 
 **حالت‌های لاگین داخل اسکریپت:**
 - `[1] Use existing login session`
@@ -139,10 +143,28 @@ vercel deploy
 
 > 💡 **مهم:** تیک گزینه `Sensitive` رو حتماً بردار تا بعداً بتونی مقدار این متغیرها رو تو داشبورد ببینی. در نهایت دکمه **Save** رو بزن.
 
-مقادیر تنظیم سرعت هم کاملاً اختیاری هستن و دقیقاً به همین روش اضافه میشن:
-- `MAX_INFLIGHT` (سقف کانکشن‌های همزمان)
-- `MAX_UP_BPS` (سقف سرعت آپلود به بایت)
-- `MAX_DOWN_BPS` (سقف سرعت دانلود به بایت)
+مقادیر ENV رو می‌تونی دقیقاً طبق جدول زیر ست کنی:
+
+| متغیر | وضعیت | مقدار دیفالت v1.3.4 | توضیح |
+| :--- | :---: | :---: | :--- |
+| `TARGET_DOMAIN` | 🔴 اجباری | - | آدرس Upstream مثل `https://domain:port` |
+| `RELAY_PATH` | 🔴 اجباری | - | مسیر اینباند؛ باید دقیقاً با مسیر سرور خارج یکی باشه (مثلاً `/api`) |
+| `UPSTREAM_TIMEOUT_MS` | ⚪ اختیاری | `25000` | سقف انتظار برای پاسخ upstream؛ کمترش یعنی قطع سریع‌تر و مصرف کمتر |
+| `MAX_INFLIGHT` | ⚪ اختیاری | `128` | سقف درخواست همزمان داخل هر instance |
+| `MAX_UP_BPS` | ⚪ اختیاری | `2621440` | سقف آپلود به بایت بر ثانیه (حدود 20Mbps) |
+| `MAX_DOWN_BPS` | ⚪ اختیاری | `2621440` | سقف دانلود به بایت بر ثانیه (حدود 20Mbps) |
+| `SUCCESS_LOG_SAMPLE_RATE` | ⚪ اختیاری | `0` | نرخ نمونه‌گیری لاگ موفق‌ها (برای کاهش هزینه لاگ) |
+| `SUCCESS_LOG_MIN_DURATION_MS` | ⚪ اختیاری | `3000` | فقط درخواست‌های کندتر از این مقدار لاگ موفق می‌خورند |
+| `ERROR_LOG_MIN_INTERVAL_MS` | ⚪ اختیاری | `5000` | حداقل فاصله بین لاگ خطاها (جلوگیری از انفجار لاگ) |
+| `RELAY_KEY` | ⚪ اختیاری | - | اگر ست بشه، فقط با `x-relay-key` معتبر اجازه عبور میده |
+
+**دیفالت اقتصادی پیشنهادی پروژه (برای Deploy جدید):**
+```text
+MAX_INFLIGHT=128
+MAX_UP_BPS=2621440
+MAX_DOWN_BPS=2621440
+UPSTREAM_TIMEOUT_MS=25000
+```
 
 *(توجه: نیازی به ست کردن `RELAY_KEY` نیست مگه اینکه واقعاً بخوای رو پروژه‌ت پسورد بذاری).*
 
@@ -167,6 +189,47 @@ vercel deploy
 
 ---
 
+## 💸 محاسبه هزینه روی Vercel Pro (نسخه 1.3.4)
+
+این نسخه با هدف «اقتصادی‌ترین حالت پایدار» تیون شده.  
+دیفالت فعلی پروژه روی این مقادیره:
+
+```text
+MAX_INFLIGHT=128
+MAX_UP_BPS=2621440
+MAX_DOWN_BPS=2621440
+UPSTREAM_TIMEOUT_MS=25000
+SUCCESS_LOG_SAMPLE_RATE=0
+SUCCESS_LOG_MIN_DURATION_MS=3000
+ERROR_LOG_MIN_INTERVAL_MS=5000
+```
+
+### هزینه از چه بخش‌هایی میاد؟
+- `Function Invocations` (تعداد فراخوانی‌ها)
+- `Fluid Active CPU` (زمان واقعی اجرای CPU)
+- `Fluid Provisioned Memory` (زمان فعال بودن مموری)
+- `Fast Origin Transfer` (ترافیک رفت/برگشت بین CDN و Function)
+- `Observability Events` (حجم لاگ‌ها)
+
+### فرمول‌های ساده
+- هزینه Invocation:  
+  `invocations / 1,000,000 × $0.60`
+- هزینه Fast Origin Transfer (تقریبی):  
+  `origin_gb × نرخ منطقه`
+- هزینه CPU و Memory:  
+  `active_cpu_hours × نرخ CPU منطقه + provisioned_gb_hours × نرخ Memory منطقه`
+
+### مثال حدودی (بر اساس نرخ‌های پایه Pro)
+- `Invocations`: حدود `$0.60 / 1M`
+- `Fast Origin Transfer`: شروع از حدود `$0.06 / GB` (وابسته به ریجن)
+- `Active CPU`: شروع از حدود `$0.128 / ساعت`
+- `Provisioned Memory`: شروع از حدود `$0.0106 / GB-hour`
+
+یعنی اگر مصرفت مثل تست‌های سبک روزانه باشه، معمولاً فشار هزینه اصلی از **تعداد Invocation + Origin Transfer + لاگ زیاد** میاد؛  
+برای همین توی `v1.3.4` لاگ‌ها Rate-limit و Sample شدن تا هزینه Observability هم تا حد ممکن بیاد پایین.
+
+---
+
 ## 🎚️ تنظیمات آماده (Presets)
 
 این اعداد صرفاً پیشنهادن. همونی که به کارت میاد رو کپی کن:
@@ -188,22 +251,22 @@ MAX_DOWN_BPS=1572864
 ### ۳. حالت ECO (تعداد یوزر بالا، سرعت پایین - هدف اصلی این پروژه)
 ```text
 MAX_INFLIGHT=128
-MAX_UP_BPS=786432
-MAX_DOWN_BPS=786432
+MAX_UP_BPS=2621440
+MAX_DOWN_BPS=2621440
 ```
 
 ### ۴. شلوغی زیاد (سرعت فدای پایداری کانکشن)
 ```text
 MAX_INFLIGHT=192
-MAX_UP_BPS=655360
-MAX_DOWN_BPS=655360
+MAX_UP_BPS=1966080
+MAX_DOWN_BPS=1966080
 ```
 
 ### ۵. بقا! (کم‌مصرف‌ترین حالت، فقط واسه اینکه وصل باشن)
 ```text
 MAX_INFLIGHT=256
-MAX_UP_BPS=524288
-MAX_DOWN_BPS=524288
+MAX_UP_BPS=1310720
+MAX_DOWN_BPS=1310720
 ```
 
 ---
@@ -265,3 +328,4 @@ TTfYReJ7aJEvx4CfwgtY3UV8hJHXTrTwnn
 ## License
 
 MIT
+

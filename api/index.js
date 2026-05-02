@@ -13,10 +13,13 @@ const UPSTREAM_DNS_ORDER = (process.env.UPSTREAM_DNS_ORDER || "ipv4first").trim(
 const PLATFORM_HEADER_PREFIX = `x-${String.fromCharCode(118, 101, 114, 99, 101, 108)}-`;
 const RELAY_PATH = normalizeRelayPath(process.env.RELAY_PATH || "");
 const RELAY_KEY = (process.env.RELAY_KEY || "").trim();
-const UPSTREAM_TIMEOUT_MS = parsePositiveInt(process.env.UPSTREAM_TIMEOUT_MS, 120000, 1000);
-const MAX_INFLIGHT = parsePositiveInt(process.env.MAX_INFLIGHT, 192, 1);
-const MAX_UP_BPS = parseNonNegativeInt(process.env.MAX_UP_BPS, 5242880);
-const MAX_DOWN_BPS = parseNonNegativeInt(process.env.MAX_DOWN_BPS, 5242880);
+const UPSTREAM_TIMEOUT_MS = parsePositiveInt(process.env.UPSTREAM_TIMEOUT_MS, 25000, 1000);
+const MAX_INFLIGHT = parsePositiveInt(process.env.MAX_INFLIGHT, 128, 1);
+const MAX_UP_BPS = parseNonNegativeInt(process.env.MAX_UP_BPS, 2621440);
+const MAX_DOWN_BPS = parseNonNegativeInt(process.env.MAX_DOWN_BPS, 2621440);
+const SUCCESS_LOG_SAMPLE_RATE = clampNumber(parseFloat(process.env.SUCCESS_LOG_SAMPLE_RATE || "0"), 0, 1);
+const SUCCESS_LOG_MIN_DURATION_MS = parseNonNegativeInt(process.env.SUCCESS_LOG_MIN_DURATION_MS, 3000);
+const ERROR_LOG_MIN_INTERVAL_MS = parseNonNegativeInt(process.env.ERROR_LOG_MIN_INTERVAL_MS, 5000);
 
 applyDnsPreference();
 
@@ -56,6 +59,10 @@ const STRIP_HEADERS = new Set([
 ]);
 
 let inFlight = 0;
+const logState = {
+  timeout: { lastAt: 0, suppressed: 0 },
+  error: { lastAt: 0, suppressed: 0 },
+};
 
 export default async function handler(req, res) {
   const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -168,7 +175,7 @@ export default async function handler(req, res) {
       }
 
       const durationMs = Date.now() - startedAt;
-      console.info("relay ok", {
+      maybeLogSuccess({
         requestId,
         path: normalizedPath,
         rawPath: url.pathname,
@@ -182,7 +189,7 @@ export default async function handler(req, res) {
   } catch (err) {
     const durationMs = Date.now() - startedAt;
     if (err?.name === "AbortError") {
-      console.error("relay timeout", {
+      emitRateLimitedError("timeout", "relay timeout", {
         requestId,
         method: req.method,
         durationMs,
@@ -195,7 +202,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    console.error("relay error", {
+    emitRateLimitedError("error", "relay error", {
       requestId,
       method: req.method,
       durationMs,
@@ -216,6 +223,40 @@ function shouldForwardHeader(headerName) {
     if (headerName.startsWith(prefix)) return true;
   }
   return false;
+}
+
+function maybeLogSuccess(payload) {
+  if (payload.status >= 400) {
+    console.warn("relay non-2xx", payload);
+    return;
+  }
+  if (payload.durationMs >= SUCCESS_LOG_MIN_DURATION_MS) {
+    console.info("relay slow", payload);
+    return;
+  }
+  if (SUCCESS_LOG_SAMPLE_RATE > 0 && Math.random() < SUCCESS_LOG_SAMPLE_RATE) {
+    console.info("relay sample", payload);
+  }
+}
+
+function emitRateLimitedError(kind, label, payload) {
+  const state = logState[kind] || logState.error;
+  const now = Date.now();
+  if (ERROR_LOG_MIN_INTERVAL_MS <= 0) {
+    console.error(label, payload);
+    return;
+  }
+  if (now - state.lastAt < ERROR_LOG_MIN_INTERVAL_MS) {
+    state.suppressed += 1;
+    return;
+  }
+  const out = { ...payload };
+  if (state.suppressed > 0) {
+    out.suppressed = state.suppressed;
+  }
+  state.suppressed = 0;
+  state.lastAt = now;
+  console.error(label, out);
 }
 
 function applyDnsPreference() {
@@ -256,6 +297,11 @@ function parseNonNegativeInt(rawValue, fallbackValue) {
   if (!Number.isFinite(value)) return fallbackValue;
   if (value < 0) return fallbackValue;
   return Math.trunc(value);
+}
+
+function clampNumber(value, minValue, maxValue) {
+  if (!Number.isFinite(value)) return minValue;
+  return Math.min(maxValue, Math.max(minValue, value));
 }
 
 function toHeaderValue(value) {

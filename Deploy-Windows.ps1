@@ -582,9 +582,13 @@ function Collect-NewDeploymentConfig([string]$DefaultScope) {
   $scope = $scope.Trim()
   $targetDomain = Read-Required "TARGET_DOMAIN (example: https://your-upstream-domain:443)"
   $relayPath = Read-Default "RELAY_PATH (MUST be EXACT inbound path on your foreign server, e.g. /api or /freedom)" "/api"
-  $maxInflight = Read-Default "MAX_INFLIGHT" "192"
-  $maxUpBps = Read-Default "MAX_UP_BPS" "5242880"
-  $maxDownBps = Read-Default "MAX_DOWN_BPS" "5242880"
+  $maxInflight = Read-Default "MAX_INFLIGHT" "128"
+  $maxUpBps = Read-Default "MAX_UP_BPS" "2621440"
+  $maxDownBps = Read-Default "MAX_DOWN_BPS" "2621440"
+  $upstreamTimeoutMs = Read-Default "UPSTREAM_TIMEOUT_MS" "25000"
+  $successLogSampleRate = Read-Default "SUCCESS_LOG_SAMPLE_RATE" "0"
+  $successLogMinDurationMs = Read-Default "SUCCESS_LOG_MIN_DURATION_MS" "3000"
+  $errorLogMinIntervalMs = Read-Default "ERROR_LOG_MIN_INTERVAL_MS" "5000"
 
   if (-not $relayPath.StartsWith("/")) { $relayPath = "/$relayPath" }
 
@@ -595,6 +599,10 @@ function Collect-NewDeploymentConfig([string]$DefaultScope) {
   Write-Host "MAX_INFLIGHT  = $maxInflight"
   Write-Host "MAX_UP_BPS    = $maxUpBps"
   Write-Host "MAX_DOWN_BPS  = $maxDownBps"
+  Write-Host "UPSTREAM_TIMEOUT_MS        = $upstreamTimeoutMs"
+  Write-Host "SUCCESS_LOG_SAMPLE_RATE    = $successLogSampleRate"
+  Write-Host "SUCCESS_LOG_MIN_DURATION_MS= $successLogMinDurationMs"
+  Write-Host "ERROR_LOG_MIN_INTERVAL_MS  = $errorLogMinIntervalMs"
 
   return @{
     ProjectName = $projectName
@@ -604,6 +612,10 @@ function Collect-NewDeploymentConfig([string]$DefaultScope) {
     MaxInflight = $maxInflight
     MaxUpBps = $maxUpBps
     MaxDownBps = $maxDownBps
+    UpstreamTimeoutMs = $upstreamTimeoutMs
+    SuccessLogSampleRate = $successLogSampleRate
+    SuccessLogMinDurationMs = $successLogMinDurationMs
+    ErrorLogMinIntervalMs = $errorLogMinIntervalMs
   }
 }
 
@@ -614,6 +626,10 @@ function Apply-ProductionEnv($cfg) {
   Set-VercelEnv -Name "MAX_INFLIGHT" -Value $cfg.MaxInflight -Target "production" -Scope $cfg.Scope
   Set-VercelEnv -Name "MAX_UP_BPS" -Value $cfg.MaxUpBps -Target "production" -Scope $cfg.Scope
   Set-VercelEnv -Name "MAX_DOWN_BPS" -Value $cfg.MaxDownBps -Target "production" -Scope $cfg.Scope
+  Set-VercelEnv -Name "UPSTREAM_TIMEOUT_MS" -Value $cfg.UpstreamTimeoutMs -Target "production" -Scope $cfg.Scope
+  Set-VercelEnv -Name "SUCCESS_LOG_SAMPLE_RATE" -Value $cfg.SuccessLogSampleRate -Target "production" -Scope $cfg.Scope
+  Set-VercelEnv -Name "SUCCESS_LOG_MIN_DURATION_MS" -Value $cfg.SuccessLogMinDurationMs -Target "production" -Scope $cfg.Scope
+  Set-VercelEnv -Name "ERROR_LOG_MIN_INTERVAL_MS" -Value $cfg.ErrorLogMinIntervalMs -Target "production" -Scope $cfg.Scope
 }
 
 function Run-NewDeploymentFlow([string]$DefaultScope) {
@@ -627,12 +643,16 @@ function Run-NewDeploymentFlow([string]$DefaultScope) {
 }
 
 function Run-UpdateEnvFlow([string]$Scope) {
-  Write-Step "Update production env vars (all fields are required)..."
+  Write-Step "Update production env vars (required + economic defaults)..."
   $targetDomain = Read-Required "TARGET_DOMAIN"
   $relayPath = Read-Required "RELAY_PATH (inbound path on foreign server)"
-  $maxInflight = Read-Required "MAX_INFLIGHT"
-  $maxUpBps = Read-Required "MAX_UP_BPS"
-  $maxDownBps = Read-Required "MAX_DOWN_BPS"
+  $maxInflight = Read-Default "MAX_INFLIGHT" "128"
+  $maxUpBps = Read-Default "MAX_UP_BPS" "2621440"
+  $maxDownBps = Read-Default "MAX_DOWN_BPS" "2621440"
+  $upstreamTimeoutMs = Read-Default "UPSTREAM_TIMEOUT_MS" "25000"
+  $successLogSampleRate = Read-Default "SUCCESS_LOG_SAMPLE_RATE" "0"
+  $successLogMinDurationMs = Read-Default "SUCCESS_LOG_MIN_DURATION_MS" "3000"
+  $errorLogMinIntervalMs = Read-Default "ERROR_LOG_MIN_INTERVAL_MS" "5000"
 
   if (-not $relayPath.StartsWith("/")) { $relayPath = "/$relayPath" }
 
@@ -641,6 +661,10 @@ function Run-UpdateEnvFlow([string]$Scope) {
   Set-VercelEnv -Name "MAX_INFLIGHT" -Value $maxInflight -Target "production" -Scope $Scope
   Set-VercelEnv -Name "MAX_UP_BPS" -Value $maxUpBps -Target "production" -Scope $Scope
   Set-VercelEnv -Name "MAX_DOWN_BPS" -Value $maxDownBps -Target "production" -Scope $Scope
+  Set-VercelEnv -Name "UPSTREAM_TIMEOUT_MS" -Value $upstreamTimeoutMs -Target "production" -Scope $Scope
+  Set-VercelEnv -Name "SUCCESS_LOG_SAMPLE_RATE" -Value $successLogSampleRate -Target "production" -Scope $Scope
+  Set-VercelEnv -Name "SUCCESS_LOG_MIN_DURATION_MS" -Value $successLogMinDurationMs -Target "production" -Scope $Scope
+  Set-VercelEnv -Name "ERROR_LOG_MIN_INTERVAL_MS" -Value $errorLogMinIntervalMs -Target "production" -Scope $Scope
 
   $redeployNow = Read-Default "Redeploy now? (Y/n)" "y"
   if ($redeployNow.ToLowerInvariant() -eq "y") {
