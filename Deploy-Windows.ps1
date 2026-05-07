@@ -78,77 +78,32 @@ function Read-YesNo([string]$Prompt, [bool]$DefaultYes = $true) {
 function Choose-DeploymentMode {
   Write-Host ""
   Write-Host "Choose deployment mode:" -ForegroundColor Cyan
-  Write-Host "[1] ECO_MIN_COST             | Node + Fluid OFF | cheapest stable profile"
-  Write-Host "    MAX_INFLIGHT=128 | MAX_UP_BPS=2621440 | MAX_DOWN_BPS=2621440 | UPSTREAM_TIMEOUT_MS=50000"
-  Write-Host "[2] BALANCED_LOW_TIMEOUT     | Node + Fluid ON  | better latency with moderate cost"
-  Write-Host "    MAX_INFLIGHT=256 | MAX_UP_BPS=5242880 | MAX_DOWN_BPS=5242880 | UPSTREAM_TIMEOUT_MS=60000"
-  Write-Host "[3] MAX_STABILITY_HIGH_CONN  | Node + Fluid ON  | high connection capacity"
-  Write-Host "    MAX_INFLIGHT=512 | MAX_UP_BPS=10485760 | MAX_DOWN_BPS=10485760 | UPSTREAM_TIMEOUT_MS=60000"
-  Write-Host "[4] STRESS_TEST              | Node + Fluid ON  | aggressive profile for testing only"
-  Write-Host "    MAX_INFLIGHT=896 | MAX_UP_BPS=26214400 | MAX_DOWN_BPS=26214400 | UPSTREAM_TIMEOUT_MS=60000"
-  Write-Host "[5] FAST_PIPE_REWRITE_SECURE | Rewrite (optional x-relay-key lock)"
-  Write-Host "[6] CUSTOM_BUILD             | manually set everything"
+  Write-Host "[0] Back"
+  Write-Host ""
+  Write-Host "[1] FAST PIPE  (Recommended / No Fluid cost / Hot)" -ForegroundColor Green
+  Write-Host "    Rewrite mode. Direct Vercel Edge pass-through; optional x-relay-key."
+  Write-Host ""
+  Write-Host "[2] BALANCED   (Node + Fluid ON)" -ForegroundColor Cyan
+  Write-Host "    Lower timeout profile for normal usage. 256 conn | 5 MB/s up/down | 60s upstream | 800s function."
+  Write-Host ""
+  Write-Host "[3] MAX CONN   (Node + Fluid ON)" -ForegroundColor Cyan
+  Write-Host "    Higher capacity profile. 512 conn | 10 MB/s up/down | 60s upstream | 800s function."
+  Write-Host ""
+  Write-Host "[4] CUSTOM     (Manual)" -ForegroundColor Yellow
+  Write-Host "    Set runtime, Fluid, regions, CPU, duration, limits, timeout and logs yourself."
+  Write-Host ""
 
-  $choice = Read-Default "Select mode" "2"
+  $choice = Read-Default "Select mode" "1"
   switch ($choice) {
+    "0" {
+      return @{
+        Canceled = $true
+        ModeKey = "__BACK__"
+      }
+    }
     "1" {
       return @{
-        ModeKey = "ECO_MIN_COST"
-        Runtime = "node"
-        FluidEnabled = $false
-        MaxInflight = "128"
-        MaxUpBps = "2621440"
-        MaxDownBps = "2621440"
-        UpstreamTimeoutMs = "50000"
-        FunctionTimeoutSec = 120
-        RunStressAfterDeploy = $false
-        RequireRelayKey = $false
-      }
-    }
-    "2" {
-      return @{
-        ModeKey = "BALANCED_LOW_TIMEOUT"
-        Runtime = "node"
-        FluidEnabled = $true
-        MaxInflight = "256"
-        MaxUpBps = "5242880"
-        MaxDownBps = "5242880"
-        UpstreamTimeoutMs = "60000"
-        FunctionTimeoutSec = 180
-        RunStressAfterDeploy = $false
-        RequireRelayKey = $false
-      }
-    }
-    "3" {
-      return @{
-        ModeKey = "MAX_STABILITY_HIGH_CONN"
-        Runtime = "node"
-        FluidEnabled = $true
-        MaxInflight = "512"
-        MaxUpBps = "10485760"
-        MaxDownBps = "10485760"
-        UpstreamTimeoutMs = "60000"
-        FunctionTimeoutSec = 240
-        RunStressAfterDeploy = $false
-        RequireRelayKey = $false
-      }
-    }
-    "4" {
-      return @{
-        ModeKey = "STRESS_TEST"
-        Runtime = "node"
-        FluidEnabled = $true
-        MaxInflight = "896"
-        MaxUpBps = "26214400"
-        MaxDownBps = "26214400"
-        UpstreamTimeoutMs = "60000"
-        FunctionTimeoutSec = 300
-        RunStressAfterDeploy = $true
-        RequireRelayKey = $false
-      }
-    }
-    "5" {
-      return @{
+        Canceled = $false
         ModeKey = "FAST_PIPE_REWRITE_SECURE"
         Runtime = "rewrite"
         FluidEnabled = $false
@@ -157,40 +112,14 @@ function Choose-DeploymentMode {
         MaxDownBps = ""
         UpstreamTimeoutMs = "30000"
         FunctionTimeoutSec = 0
+        FunctionCpu = ""
         RunStressAfterDeploy = $false
         RequireRelayKey = $false
       }
     }
-    "6" {
-      $runtimePick = Read-Default "Runtime type (node/rewrite)" "node"
-      $runtimeType = if ($runtimePick.Trim().ToLowerInvariant() -eq "rewrite") { "rewrite" } else { "node" }
-      $fluidEnabled = $false
-      $maxInflight = ""
-      $maxUpBps = ""
-      $maxDownBps = ""
-      $fnTimeout = 180
-      if ($runtimeType -eq "node") {
-        $fluidEnabled = Read-YesNo -Prompt "Enable Fluid Compute for this build" -DefaultYes $true
-        $maxInflight = Read-Required "MAX_INFLIGHT (example: 256)"
-        $maxUpBps = Read-Required "MAX_UP_BPS (bytes/sec, example: 5242880)"
-        $maxDownBps = Read-Required "MAX_DOWN_BPS (bytes/sec, example: 5242880)"
-        $fnTimeout = [int](Read-Default "Function timeout seconds (30..800)" "180")
-      }
+    "2" {
       return @{
-        ModeKey = "CUSTOM_BUILD"
-        Runtime = $runtimeType
-        FluidEnabled = $fluidEnabled
-        MaxInflight = $maxInflight
-        MaxUpBps = $maxUpBps
-        MaxDownBps = $maxDownBps
-        UpstreamTimeoutMs = (Read-Default "UPSTREAM_TIMEOUT_MS (ms)" "50000")
-        FunctionTimeoutSec = $fnTimeout
-        RunStressAfterDeploy = $false
-        RequireRelayKey = $false
-      }
-    }
-    default {
-      return @{
+        Canceled = $false
         ModeKey = "BALANCED_LOW_TIMEOUT"
         Runtime = "node"
         FluidEnabled = $true
@@ -198,7 +127,78 @@ function Choose-DeploymentMode {
         MaxUpBps = "5242880"
         MaxDownBps = "5242880"
         UpstreamTimeoutMs = "60000"
-        FunctionTimeoutSec = 180
+        FunctionTimeoutSec = 800
+        FunctionCpu = "standard"
+        RunStressAfterDeploy = $false
+        RequireRelayKey = $false
+      }
+    }
+    "3" {
+      return @{
+        Canceled = $false
+        ModeKey = "MAX_STABILITY_HIGH_CONN"
+        Runtime = "node"
+        FluidEnabled = $true
+        MaxInflight = "512"
+        MaxUpBps = "10485760"
+        MaxDownBps = "10485760"
+        UpstreamTimeoutMs = "60000"
+        FunctionTimeoutSec = 800
+        FunctionCpu = "standard"
+        RunStressAfterDeploy = $false
+        RequireRelayKey = $false
+      }
+    }
+    "4" {
+      $runtimePick = Read-Default "Runtime type (node/rewrite, 0 = Back)" "node"
+      if ($runtimePick.Trim() -eq "0") {
+        return @{ Canceled = $true; ModeKey = "__BACK__" }
+      }
+      $runtimeType = if ($runtimePick.Trim().ToLowerInvariant() -eq "rewrite") { "rewrite" } else { "node" }
+      $fluidEnabled = $false
+      $maxInflight = ""
+      $maxUpBps = ""
+      $maxDownBps = ""
+      $upstreamTimeout = "30000"
+      $fnTimeout = 0
+      $functionCpu = ""
+      if ($runtimeType -eq "node") {
+        $fluidEnabled = Read-YesNo -Prompt "Enable Fluid Compute for this build" -DefaultYes $true
+        $functionCpu = Choose-FunctionCpu -FluidEnabled $fluidEnabled
+        $maxInflight = Read-Required "MAX_INFLIGHT (example: 256)"
+        $maxUpBps = Read-Required "MAX_UP_BPS (bytes/sec, example: 5242880)"
+        $maxDownBps = Read-Required "MAX_DOWN_BPS (bytes/sec, example: 5242880)"
+        $upstreamTimeout = Read-Default "UPSTREAM_TIMEOUT_MS (ms)" "60000"
+        $durationRange = if ($fluidEnabled) { "30..800" } else { "30..300" }
+        $fnTimeout = [int](Read-Default ("Function Max Duration seconds ({0})" -f $durationRange) "300")
+      }
+      return @{
+        Canceled = $false
+        ModeKey = "CUSTOM_BUILD"
+        Runtime = $runtimeType
+        FluidEnabled = $fluidEnabled
+        MaxInflight = $maxInflight
+        MaxUpBps = $maxUpBps
+        MaxDownBps = $maxDownBps
+        UpstreamTimeoutMs = $upstreamTimeout
+        FunctionTimeoutSec = $fnTimeout
+        FunctionCpu = $functionCpu
+        RunStressAfterDeploy = $false
+        RequireRelayKey = $false
+      }
+    }
+    default {
+      return @{
+        Canceled = $false
+        ModeKey = "FAST_PIPE_REWRITE_SECURE"
+        Runtime = "rewrite"
+        FluidEnabled = $false
+        MaxInflight = ""
+        MaxUpBps = ""
+        MaxDownBps = ""
+        UpstreamTimeoutMs = "30000"
+        FunctionTimeoutSec = 0
+        FunctionCpu = ""
         RunStressAfterDeploy = $false
         RequireRelayKey = $false
       }
@@ -295,6 +295,53 @@ function Try-ResolveCountryFromIp([string]$IpAddress) {
   return ""
 }
 
+function Get-FunctionRegionCatalog {
+  return @(
+    [pscustomobject]@{ Code = "cdg1"; Label = "Paris, France (West)"; Detail = "Europe West / eu-west-3" },
+    [pscustomobject]@{ Code = "arn1"; Label = "Stockholm, Sweden (North)"; Detail = "Europe North / eu-north-1" },
+    [pscustomobject]@{ Code = "dub1"; Label = "Dublin, Ireland (West)"; Detail = "Europe West / eu-west-1" },
+    [pscustomobject]@{ Code = "lhr1"; Label = "London, United Kingdom (West)"; Detail = "Europe West / eu-west-2" },
+    [pscustomobject]@{ Code = "fra1"; Label = "Frankfurt, Germany (West)"; Detail = "Europe Central / eu-central-1" },
+    [pscustomobject]@{ Code = "iad1"; Label = "Washington, D.C., USA (East)"; Detail = "US East / us-east-1" },
+    [pscustomobject]@{ Code = "dxb1"; Label = "Dubai, United Arab Emirates (East)"; Detail = "Middle East Central / me-central-1" }
+  )
+}
+
+function Normalize-RegionList([string]$RegionText) {
+  if ([string]::IsNullOrWhiteSpace($RegionText)) { return @() }
+  $items = @()
+  foreach ($part in ($RegionText -split '[,\s]+')) {
+    $p = ([string]$part).Trim().ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($p)) { continue }
+    $items += $p
+  }
+  return @($items | Select-Object -Unique)
+}
+
+function Choose-FunctionCpu([bool]$FluidEnabled) {
+  Write-Host ""
+  Write-Host "Choose Function CPU:" -ForegroundColor Cyan
+  if ($FluidEnabled) {
+    Write-Host "[1] Standard    | 1 vCPU, 2 GB memory | predictable production workloads"
+    Write-Host "[2] Performance | 2 vCPUs, 4 GB memory | latency-sensitive and SSR workloads"
+    $pick = Read-Default "Select CPU" "1"
+    switch ($pick) {
+      "2" { return "performance" }
+      default { return "standard" }
+    }
+  }
+
+  Write-Host "[1] Basic       | 0.6 vCPU, 1 GB memory | cost-effective lightweight apps and APIs"
+  Write-Host "[2] Standard    | 1 vCPU, 1.7 GB memory | predictable production workloads"
+  Write-Host "[3] Performance | 1.7 vCPUs, 3 GB memory | latency-sensitive and SSR workloads"
+  $pickNoFluid = Read-Default "Select CPU" "2"
+  switch ($pickNoFluid) {
+    "1" { return "standard_legacy" }
+    "3" { return "performance" }
+    default { return "standard" }
+  }
+}
+
 function Choose-FunctionRegion([string]$TargetDomain) {
   $defaultRegion = "iad1"
   $upHost = Get-UpstreamHostFromDomain -TargetDomain $TargetDomain
@@ -331,21 +378,33 @@ function Choose-FunctionRegion([string]$TargetDomain) {
     Write-Host ("Auto hint fallback: could not parse host from TARGET_DOMAIN ('{0}'). Use full format like https://domain:port. Using '{1}'." -f $TargetDomain, $defaultRegion) -ForegroundColor DarkGray
   }
 
+  $catalog = Get-FunctionRegionCatalog
   Write-Host ""
-  Write-Host "Choose Vercel function region (you can change later):" -ForegroundColor Cyan
-  Write-Host "[1] iad1 (Washington, US) - default global fallback"
-  Write-Host "[2] fra1 (Frankfurt, DE) - good for Europe/Middle East routes"
-  Write-Host "[3] lhr1 (London, UK)"
-  Write-Host "[4] hnd1 (Tokyo, JP)"
-  Write-Host "[5] Custom region code"
-  $pick = Read-Default ("Select region (suggested: {0})" -f $defaultRegion) "1"
-  switch ($pick) {
-    "2" { return "fra1" }
-    "3" { return "lhr1" }
-    "4" { return "hnd1" }
-    "5" { return (Read-Required "Custom region code (example: fra1)").ToLowerInvariant() }
-    default { return $defaultRegion }
+  Write-Host "Choose Vercel Function Region(s). You can enter multiple numbers/codes separated by comma." -ForegroundColor Cyan
+  for ($i = 0; $i -lt $catalog.Count; $i++) {
+    $r = $catalog[$i]
+    $tag = if ($r.Code -eq $defaultRegion) { " (suggested)" } else { "" }
+    Write-Host ("[{0}] {1} - {2} - {3}{4}" -f ($i + 1), $r.Label, $r.Detail, $r.Code, $tag)
   }
+  Write-Host "[C] Custom region code(s)"
+  $pick = Read-Default ("Select region(s)" ) $defaultRegion
+  $regions = @()
+  if ($pick.Trim().ToLowerInvariant() -eq "c") {
+    $regions = Normalize-RegionList (Read-Required "Custom region code(s), comma-separated (example: arn1,fra1)")
+  } else {
+    foreach ($part in ($pick -split '[,\s]+')) {
+      $p = ([string]$part).Trim().ToLowerInvariant()
+      if ([string]::IsNullOrWhiteSpace($p)) { continue }
+      $n = 0
+      if ([int]::TryParse($p, [ref]$n) -and $n -ge 1 -and $n -le $catalog.Count) {
+        $regions += [string]$catalog[$n - 1].Code
+      } else {
+        $regions += $p
+      }
+    }
+  }
+  if ($regions.Count -eq 0) { $regions = @($defaultRegion) }
+  return (@($regions | Select-Object -Unique) -join ",")
 }
 
 function Refresh-Path {
@@ -360,6 +419,55 @@ function Get-TokenStorePath([string]$ProjectRoot) {
 
 function Get-ScopeStorePath([string]$ProjectRoot) {
   return (Join-Path $ProjectRoot ".vercel-scope.txt")
+}
+
+function Get-ProjectStateStorePath([string]$ProjectRoot) {
+  return (Join-Path $ProjectRoot ".xhttprelay-project-state.json")
+}
+
+function Load-LocalProjectDeployState([string]$ProjectName) {
+  if ([string]::IsNullOrWhiteSpace($ProjectName)) { return $null }
+  $path = Get-ProjectStateStorePath -ProjectRoot $scriptDir
+  if (-not (Test-Path $path)) { return $null }
+  try {
+    $raw = Get-Content -Path $path -Raw
+    if ([string]::IsNullOrWhiteSpace($raw)) { return $null }
+    $obj = $raw | ConvertFrom-Json
+    if ($null -eq $obj -or $null -eq $obj.projects) { return $null }
+    return @($obj.projects | Where-Object { [string]$_.ProjectName -eq $ProjectName } | Select-Object -First 1)
+  } catch {
+    return $null
+  }
+}
+
+function Save-LocalProjectDeployState([string]$ProjectName, [string]$Scope, [string]$DeployMode, [string]$Runtime, [string]$RelayPath) {
+  if ([string]::IsNullOrWhiteSpace($ProjectName)) { return }
+  $path = Get-ProjectStateStorePath -ProjectRoot $scriptDir
+  $projects = @()
+  if (Test-Path $path) {
+    try {
+      $raw = Get-Content -Path $path -Raw
+      if (-not [string]::IsNullOrWhiteSpace($raw)) {
+        $obj = $raw | ConvertFrom-Json
+        if ($null -ne $obj -and $null -ne $obj.projects) {
+          $projects = @($obj.projects | Where-Object { [string]$_.ProjectName -ne $ProjectName })
+        }
+      }
+    } catch {
+      $projects = @()
+    }
+  }
+  $projects += [pscustomobject]@{
+    ProjectName = $ProjectName
+    Scope = $Scope
+    DeployMode = $DeployMode
+    Runtime = $Runtime
+    RelayPath = $RelayPath
+    UpdatedAt = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+  }
+  $state = [ordered]@{ projects = @($projects | Sort-Object ProjectName) }
+  $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($path, ($state | ConvertTo-Json -Depth 20), $utf8NoBom)
 }
 
 function Save-Scope([string]$Scope, [string]$Path) {
@@ -381,7 +489,9 @@ function Load-Scope([string]$Path) {
 }
 
 function Get-VercelTeamSlugs {
-  $result = Invoke-NativeSafe -FilePath $VercelExe -Arguments @("teams", "ls", "--no-color")
+  $args = @("teams", "ls", "--no-color")
+  $args += (Get-VercelTokenArgs)
+  $result = Invoke-NativeSafe -FilePath $VercelExe -Arguments $args
   if ($result.ExitCode -ne 0) { return @() }
   $slugs = @()
   foreach ($line in $result.Output) {
@@ -770,9 +880,38 @@ function Resolve-ProjectScopeForLink([string]$ProjectName) {
   }
 }
 
+function Clear-LocalVercelProjectLink([string]$ProjectRoot) {
+  $projectFile = Join-Path $ProjectRoot ".vercel\project.json"
+  if (Test-Path $projectFile) {
+    Remove-Item -LiteralPath $projectFile -Force -ErrorAction SilentlyContinue
+  }
+}
+
+function Write-LocalVercelProjectLink([string]$ProjectName, [string]$ProjectId, [string]$OrgId, [string]$ProjectRoot) {
+  if ([string]::IsNullOrWhiteSpace($ProjectName)) { throw "Project name is required for local link." }
+  if ([string]::IsNullOrWhiteSpace($ProjectId)) { throw "Project id is required for local link." }
+  if ([string]::IsNullOrWhiteSpace($OrgId)) { throw "Org/account id is required for local link." }
+
+  $vercelDir = Join-Path $ProjectRoot ".vercel"
+  if (-not (Test-Path $vercelDir)) {
+    New-Item -ItemType Directory -Path $vercelDir | Out-Null
+  }
+  $projectFile = Join-Path $vercelDir "project.json"
+  $obj = [ordered]@{
+    projectId = $ProjectId
+    orgId = $OrgId
+    projectName = $ProjectName
+  }
+  $json = $obj | ConvertTo-Json -Depth 10
+  $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($projectFile, $json, $utf8NoBom)
+  Write-Host ("Local .vercel link rebuilt from token/API: {0}" -f $ProjectName) -ForegroundColor Green
+}
+
 function Link-VercelProject([string]$ProjectName, [string]$Scope) {
   Write-Step "Linking local folder to Vercel project..."
   $Scope = Normalize-ScopeForCli -Scope $Scope
+  Clear-LocalVercelProjectLink -ProjectRoot $scriptDir
   $args = @("link", "--yes", "--project", $ProjectName)
   if (-not [string]::IsNullOrWhiteSpace($Scope)) { $args += @("--scope", $Scope) }
   $args += (Get-VercelTokenArgs)
@@ -781,17 +920,21 @@ function Link-VercelProject([string]$ProjectName, [string]$Scope) {
   $res.Output | Out-Host
   if ($res.ExitCode -eq 0) { return }
 
-  # Fallback: if scope is empty, resolve owner scope from API and retry.
-  if ([string]::IsNullOrWhiteSpace($Scope)) {
-    $resolvedScope = Normalize-ScopeForCli -Scope (Resolve-ProjectScopeForLink -ProjectName $ProjectName)
-    if (-not [string]::IsNullOrWhiteSpace($resolvedScope)) {
-      Write-Host "Link retry with resolved scope '$resolvedScope'..." -ForegroundColor DarkYellow
-      $retryArgs = @("link", "--yes", "--project", $ProjectName, "--scope", $resolvedScope) + (Get-VercelTokenArgs)
-      $retry = Invoke-NativeSafe -FilePath $VercelExe -Arguments $retryArgs
-      $retry.Output | Out-Host
-      if ($retry.ExitCode -eq 0) { return }
-    }
+  # Fallback: resolve owner scope from API and retry.
+  $resolvedScope = Normalize-ScopeForCli -Scope (Resolve-ProjectScopeForLink -ProjectName $ProjectName)
+  if (-not [string]::IsNullOrWhiteSpace($resolvedScope) -and $resolvedScope -ne $Scope) {
+    Write-Host "Link retry with resolved scope '$resolvedScope'..." -ForegroundColor DarkYellow
+    $retryArgs = @("link", "--yes", "--project", $ProjectName, "--scope", $resolvedScope) + (Get-VercelTokenArgs)
+    $retry = Invoke-NativeSafe -FilePath $VercelExe -Arguments $retryArgs
+    $retry.Output | Out-Host
+    if ($retry.ExitCode -eq 0) { return }
   }
+
+  Write-Host "Link final retry without explicit scope..." -ForegroundColor DarkYellow
+  $retryNoScopeArgs = @("link", "--yes", "--project", $ProjectName) + (Get-VercelTokenArgs)
+  $retryNoScope = Invoke-NativeSafe -FilePath $VercelExe -Arguments $retryNoScopeArgs
+  $retryNoScope.Output | Out-Host
+  if ($retryNoScope.ExitCode -eq 0) { return }
 
   throw "vercel link failed."
 }
@@ -952,16 +1095,13 @@ function Restore-VercelConfigAfterDeploy($state) {
 
 function Build-RewriteSecureVercelJson([string]$TargetDomain, [string]$RelayPath, [string]$PublicRelayPath, [string]$RelayKey) {
   $target = $TargetDomain.TrimEnd("/")
-  $up = Normalize-PathLike -PathValue $RelayPath
-  $pub = Normalize-PathLike -PathValue $PublicRelayPath
-  if ([string]::IsNullOrWhiteSpace($pub)) { $pub = "/api" }
-  $dest = "$target$up"
-  if (-not $dest.EndsWith("/")) { $dest = "$dest/" }
+  $destAny = "$target/`$1"
   $rk = ([string]$RelayKey).Trim()
   $rewrites = @()
   if (-not [string]::IsNullOrWhiteSpace($rk)) {
+    # Secure fast-pipe mode: forward everything only when x-relay-key matches.
     $rewrites += [ordered]@{
-      source = "$pub/(.*)"
+      source = "/(.*)"
       has = @(
         [ordered]@{
           type = "header"
@@ -969,37 +1109,18 @@ function Build-RewriteSecureVercelJson([string]$TargetDomain, [string]$RelayPath
           value = $rk
         }
       )
-      destination = "$dest`$1"
-    }
-    $rewrites += [ordered]@{
-      source = "$pub"
-      has = @(
-        [ordered]@{
-          type = "header"
-          key = "x-relay-key"
-          value = $rk
-        }
-      )
-      destination = $dest
+      destination = $destAny
     }
   } else {
+    # Plain fast-pipe mode (no header lock): forward everything to upstream.
     $rewrites += [ordered]@{
-      source = "$pub/(.*)"
-      destination = "$dest`$1"
+      source = "/(.*)"
+      destination = $destAny
     }
-    $rewrites += [ordered]@{
-      source = "$pub"
-      destination = $dest
-    }
-  }
-  $rewrites += [ordered]@{
-    source = "/(.*)"
-    destination = "/index.html"
   }
   $obj = [ordered]@{
     version = 2
     rewrites = $rewrites
-    trailingSlash = $false
   }
   return ($obj | ConvertTo-Json -Depth 20)
 }
@@ -1056,6 +1177,7 @@ function Deploy-Production(
     }
     $args = @("deploy", "--prod", "--yes")
     if (-not [string]::IsNullOrWhiteSpace($Scope)) { $args += @("--scope", $Scope) }
+    $args += (Get-VercelTokenArgs)
 
     $result = Invoke-NativeSafe -FilePath $VercelExe -Arguments $args
     $lines = $result.Output
@@ -1112,7 +1234,19 @@ function Get-LinkedProjectInfo([string]$ProjectRoot) {
   if ($obj.PSObject.Properties.Name -contains "projectId" -and $obj.projectId) { $projectId = [string]$obj.projectId }
   $scope = ""
   if ($obj.PSObject.Properties.Name -contains "orgId" -and $obj.orgId) {
-    $scope = Normalize-ScopeForCli -Scope ([string]$obj.orgId)
+    $orgId = [string]$obj.orgId
+    if ($orgId.StartsWith("team_")) {
+      try {
+        $token = Get-VercelApiToken -TokenStorePath $tokenStorePath
+        if (-not [string]::IsNullOrWhiteSpace($token)) {
+          $scope = Try-ResolveTeamSlugFromTeamId -TeamId $orgId -Token $token
+        }
+      } catch {}
+      if ([string]::IsNullOrWhiteSpace($scope)) { $scope = "" }
+    } else {
+      # Personal account links store a user/org id here; Vercel CLI scope must stay empty.
+      $scope = ""
+    }
   }
 
   return @{
@@ -1152,8 +1286,6 @@ function Get-LinkedTeamId([string]$ProjectRoot) {
 
 function Collect-NewDeploymentConfig([string]$DefaultScope) {
   Write-Step "Collecting config values..."
-  $projectNameInput = Read-Optional "Project name on Vercel (leave empty for random)"
-  $projectName = if ([string]::IsNullOrWhiteSpace($projectNameInput)) { New-RandomProjectName } else { $projectNameInput }
   $DefaultScope = Normalize-ScopeForCli -Scope $DefaultScope
   if ([string]::IsNullOrWhiteSpace($DefaultScope)) {
     $scope = Read-Host "Scope slug/team (optional, press Enter to skip)"
@@ -1164,24 +1296,44 @@ function Collect-NewDeploymentConfig([string]$DefaultScope) {
   if (-not [string]::IsNullOrWhiteSpace($scope) -and -not (Validate-Scope -Scope $scope)) {
     throw "Scope '$scope' does not exist. Enter a valid Vercel team slug."
   }
+  $mode = Choose-DeploymentMode
+  if ($mode.ContainsKey("Canceled") -and [bool]$mode.Canceled) {
+    Write-Host "Canceled. Returning to main menu." -ForegroundColor DarkYellow
+    return $null
+  }
+  $projectNameInput = Read-Optional "Project name on Vercel (leave empty for random, 0 = Back)"
+  if ($projectNameInput -eq "0") {
+    Write-Host "Canceled. Returning to main menu." -ForegroundColor DarkYellow
+    return $null
+  }
+  $projectName = if ([string]::IsNullOrWhiteSpace($projectNameInput)) { New-RandomProjectName } else { $projectNameInput }
+  $maxInflight = $mode.MaxInflight
+  $maxUpBps = $mode.MaxUpBps
+  $maxDownBps = $mode.MaxDownBps
+  $upstreamTimeoutMs = $mode.UpstreamTimeoutMs
   $targetDomain = Read-Required "TARGET_DOMAIN (MUST be your foreign server inbound domain+port, example: https://your-domain.com:443)"
+  $selectedRegion = ""
+  if ($mode.Runtime -eq "node") {
+    $selectedRegion = Choose-FunctionRegion -TargetDomain $targetDomain
+  }
   Write-Host "RELAY_PATH guide: open your foreign server inbound, set a Path starting with '/'. Enter EXACT same value here." -ForegroundColor DarkYellow
   $relayPath = Normalize-PathLike (Read-Required "RELAY_PATH (example: /api or /freedom)")
   $publicRelayPath = $relayPath
   Write-Host ("PUBLIC_RELAY_PATH auto-set to RELAY_PATH: {0}" -f $publicRelayPath) -ForegroundColor DarkCyan
   $landingTemplate = Read-Optional "LANDING_TEMPLATE (optional template folder name; empty = random each build)"
-  $mode = Choose-DeploymentMode
-  $maxInflight = $mode.MaxInflight
-  $maxUpBps = $mode.MaxUpBps
-  $maxDownBps = $mode.MaxDownBps
-  $upstreamTimeoutMs = $mode.UpstreamTimeoutMs
-  $successLogSampleRate = Read-Default "SUCCESS_LOG_SAMPLE_RATE" "0"
-  $successLogMinDurationMs = Read-Default "SUCCESS_LOG_MIN_DURATION_MS" "3000"
-  $errorLogMinIntervalMs = Read-Default "ERROR_LOG_MIN_INTERVAL_MS" "5000"
-  $selectedRegion = if ($mode.Runtime -eq "node") { Choose-FunctionRegion -TargetDomain $targetDomain } else { "n/a (rewrite mode)" }
+  $successLogSampleRate = ""
+  $successLogMinDurationMs = ""
+  $errorLogMinIntervalMs = ""
+  if ($mode.Runtime -eq "node") {
+    $successLogSampleRate = Read-Default "SUCCESS_LOG_SAMPLE_RATE" "0"
+    $successLogMinDurationMs = Read-Default "SUCCESS_LOG_MIN_DURATION_MS" "3000"
+    $errorLogMinIntervalMs = Read-Default "ERROR_LOG_MIN_INTERVAL_MS" "5000"
+  }
   $relayKey = ""
   if ($mode.Runtime -eq "rewrite") {
-    $relayKey = Read-Optional "RELAY_KEY (optional in rewrite mode; empty = no x-relay-key required)"
+    Write-Host "RELAY_KEY is optional in rewrite mode." -ForegroundColor DarkYellow
+    Write-Host "Leave it empty for public/no-header rewrite. If you set it, the client MUST send header x-relay-key with the exact same value." -ForegroundColor DarkYellow
+    $relayKey = Read-Optional "RELAY_KEY (optional; empty = no x-relay-key required)"
   }
 
   Write-Step "Environment values selected:"
@@ -1192,15 +1344,19 @@ function Collect-NewDeploymentConfig([string]$DefaultScope) {
   if ($mode.Runtime -eq "node") {
     Write-Host ("FLUID_COMPUTE = {0}" -f $(if ($mode.FluidEnabled) { "on" } else { "off" }))
     Write-Host ("FUNCTION_TIMEOUT_SEC     = {0}" -f $mode.FunctionTimeoutSec)
+    Write-Host ("FUNCTION_CPU             = {0}" -f $mode.FunctionCpu)
   }
   Write-Host "RELAY_PATH    = $relayPath"
   Write-Host "PUBLIC_RELAY_PATH = $publicRelayPath"
-  if (-not [string]::IsNullOrWhiteSpace($landingTemplate)) { Write-Host "LANDING_TEMPLATE = $landingTemplate" } else { Write-Host "LANDING_TEMPLATE = (random)" }
   if ($mode.Runtime -eq "node") {
+    if (-not [string]::IsNullOrWhiteSpace($landingTemplate)) { Write-Host "LANDING_TEMPLATE = $landingTemplate" } else { Write-Host "LANDING_TEMPLATE = (random)" }
     Write-Host "MAX_INFLIGHT  = $maxInflight"
     Write-Host "MAX_UP_BPS    = $maxUpBps"
     Write-Host "MAX_DOWN_BPS  = $maxDownBps"
     Write-Host "UPSTREAM_TIMEOUT_MS        = $upstreamTimeoutMs"
+    Write-Host "SUCCESS_LOG_SAMPLE_RATE    = $successLogSampleRate"
+    Write-Host "SUCCESS_LOG_MIN_DURATION_MS= $successLogMinDurationMs"
+    Write-Host "ERROR_LOG_MIN_INTERVAL_MS  = $errorLogMinIntervalMs"
   } else {
     if ([string]::IsNullOrWhiteSpace($relayKey)) {
       Write-Host "REWRITE_SECURITY_HEADER = (disabled)"
@@ -1210,10 +1366,11 @@ function Collect-NewDeploymentConfig([string]$DefaultScope) {
       Write-Host "RELAY_KEY               = (set)"
     }
   }
-  Write-Host "SUCCESS_LOG_SAMPLE_RATE    = $successLogSampleRate"
-  Write-Host "SUCCESS_LOG_MIN_DURATION_MS= $successLogMinDurationMs"
-  Write-Host "ERROR_LOG_MIN_INTERVAL_MS  = $errorLogMinIntervalMs"
-  Write-Host "FUNCTION_REGION            = $selectedRegion"
+  if ($mode.Runtime -eq "node") {
+    Write-Host "FUNCTION_REGION            = $selectedRegion"
+  } else {
+    Write-Host "REWRITE_NOTE               = no Vercel ENV, Fluid, CPU, Function Region, or Max Duration will be configured."
+  }
 
   return @{
     ProjectName = $projectName
@@ -1222,11 +1379,12 @@ function Collect-NewDeploymentConfig([string]$DefaultScope) {
     Runtime = $mode.Runtime
     FluidEnabled = [bool]$mode.FluidEnabled
     FunctionTimeoutSec = [int]$mode.FunctionTimeoutSec
+    FunctionCpu = $mode.FunctionCpu
     RelayKey = $relayKey
     TargetDomain = $targetDomain
     RelayPath = $relayPath
     PublicRelayPath = $publicRelayPath
-    LandingTemplate = $landingTemplate
+    LandingTemplate = if ($mode.Runtime -eq "node") { $landingTemplate } else { "" }
     MaxInflight = $maxInflight
     MaxUpBps = $maxUpBps
     MaxDownBps = $maxDownBps
@@ -1247,8 +1405,11 @@ function Export-ShareableConfigSummary($cfg, [string]$AliasUrl = "") {
   $lines += "generated_at=$((Get-Date).ToString("yyyy-MM-dd HH:mm:ss"))"
   $lines += "deploy_mode=$($cfg.DeployMode)"
   $lines += "runtime=$($cfg.Runtime)"
-  $lines += "fluid_compute=$($cfg.FluidEnabled)"
-  $lines += "function_timeout_sec=$($cfg.FunctionTimeoutSec)"
+  if ($cfg.Runtime -eq "node") {
+    $lines += "fluid_compute=$($cfg.FluidEnabled)"
+    $lines += "function_timeout_sec=$($cfg.FunctionTimeoutSec)"
+    $lines += "function_cpu=$($cfg.FunctionCpu)"
+  }
   $authState = "unknown"
   if ($cfg.ContainsKey("VercelAuthentication") -and -not [string]::IsNullOrWhiteSpace([string]$cfg.VercelAuthentication)) {
     $authState = [string]$cfg.VercelAuthentication
@@ -1258,14 +1419,19 @@ function Export-ShareableConfigSummary($cfg, [string]$AliasUrl = "") {
   $lines += "vercel_authentication=$authState"
   $lines += "relay_path=$($cfg.RelayPath)"
   $lines += "public_relay_path=$($cfg.PublicRelayPath)"
-  $lines += "region=$($cfg.Region)"
-  $lines += "max_inflight=$($cfg.MaxInflight)"
-  $lines += "max_up_bps=$($cfg.MaxUpBps)"
-  $lines += "max_down_bps=$($cfg.MaxDownBps)"
-  $lines += "upstream_timeout_ms=$($cfg.UpstreamTimeoutMs)"
-  $lines += "success_log_sample_rate=$($cfg.SuccessLogSampleRate)"
-  $lines += "success_log_min_duration_ms=$($cfg.SuccessLogMinDurationMs)"
-  $lines += "error_log_min_interval_ms=$($cfg.ErrorLogMinIntervalMs)"
+  if ($cfg.Runtime -eq "node") {
+    $lines += "region=$($cfg.Region)"
+    $lines += "max_inflight=$($cfg.MaxInflight)"
+    $lines += "max_up_bps=$($cfg.MaxUpBps)"
+    $lines += "max_down_bps=$($cfg.MaxDownBps)"
+    $lines += "upstream_timeout_ms=$($cfg.UpstreamTimeoutMs)"
+    $lines += "success_log_sample_rate=$($cfg.SuccessLogSampleRate)"
+    $lines += "success_log_min_duration_ms=$($cfg.SuccessLogMinDurationMs)"
+    $lines += "error_log_min_interval_ms=$($cfg.ErrorLogMinIntervalMs)"
+  } else {
+    $lines += "rewrite_config=vercel_json_only"
+    $lines += "vercel_env=not_required"
+  }
   if (-not [string]::IsNullOrWhiteSpace($cfg.RelayKey)) { $lines += "relay_key=(set)" }
   $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllLines($path, $lines, $utf8NoBom)
@@ -1274,6 +1440,10 @@ function Export-ShareableConfigSummary($cfg, [string]$AliasUrl = "") {
 
 function Apply-ProductionEnv($cfg) {
   Write-Step "Setting environment variables for production..."
+  if ($cfg.Runtime -eq "rewrite") {
+    Write-Host "Rewrite mode uses vercel.json rewrite rules. No production ENV vars are needed or deployed for this mode." -ForegroundColor DarkYellow
+    return
+  }
   Set-VercelEnv -Name "TARGET_DOMAIN" -Value $cfg.TargetDomain -Target "production" -Scope $cfg.Scope
   Set-VercelEnv -Name "RELAY_PATH" -Value $cfg.RelayPath -Target "production" -Scope $cfg.Scope
   Set-VercelEnv -Name "PUBLIC_RELAY_PATH" -Value $cfg.PublicRelayPath -Target "production" -Scope $cfg.Scope
@@ -1284,126 +1454,229 @@ function Apply-ProductionEnv($cfg) {
     Set-VercelEnv -Name "MAX_INFLIGHT" -Value $cfg.MaxInflight -Target "production" -Scope $cfg.Scope
     Set-VercelEnv -Name "MAX_UP_BPS" -Value $cfg.MaxUpBps -Target "production" -Scope $cfg.Scope
     Set-VercelEnv -Name "MAX_DOWN_BPS" -Value $cfg.MaxDownBps -Target "production" -Scope $cfg.Scope
+    Set-VercelEnv -Name "UPSTREAM_TIMEOUT_MS" -Value $cfg.UpstreamTimeoutMs -Target "production" -Scope $cfg.Scope
+    Set-VercelEnv -Name "SUCCESS_LOG_SAMPLE_RATE" -Value $cfg.SuccessLogSampleRate -Target "production" -Scope $cfg.Scope
+    Set-VercelEnv -Name "SUCCESS_LOG_MIN_DURATION_MS" -Value $cfg.SuccessLogMinDurationMs -Target "production" -Scope $cfg.Scope
+    Set-VercelEnv -Name "ERROR_LOG_MIN_INTERVAL_MS" -Value $cfg.ErrorLogMinIntervalMs -Target "production" -Scope $cfg.Scope
   }
-  Set-VercelEnv -Name "UPSTREAM_TIMEOUT_MS" -Value $cfg.UpstreamTimeoutMs -Target "production" -Scope $cfg.Scope
-  Set-VercelEnv -Name "SUCCESS_LOG_SAMPLE_RATE" -Value $cfg.SuccessLogSampleRate -Target "production" -Scope $cfg.Scope
-  Set-VercelEnv -Name "SUCCESS_LOG_MIN_DURATION_MS" -Value $cfg.SuccessLogMinDurationMs -Target "production" -Scope $cfg.Scope
-  Set-VercelEnv -Name "ERROR_LOG_MIN_INTERVAL_MS" -Value $cfg.ErrorLogMinIntervalMs -Target "production" -Scope $cfg.Scope
-  if (-not [string]::IsNullOrWhiteSpace($cfg.RelayKey)) {
+  if ($cfg.Runtime -eq "node" -and -not [string]::IsNullOrWhiteSpace($cfg.RelayKey)) {
     Set-VercelEnv -Name "RELAY_KEY" -Value $cfg.RelayKey -Target "production" -Scope $cfg.Scope
   }
 }
 
 function Run-NewDeploymentFlow([string]$DefaultScope) {
   $cfg = Collect-NewDeploymentConfig -DefaultScope $DefaultScope
+  if ($null -eq $cfg) { return $null }
   Ensure-VercelProject -ProjectName $cfg.ProjectName -Scope $cfg.Scope
-  Link-VercelProject -ProjectName $cfg.ProjectName -Scope $cfg.Scope
+  Ensure-LinkedToProject -ProjectName $cfg.ProjectName -Scope $cfg.Scope
   Apply-ProductionEnv -cfg $cfg
   if ($cfg.Runtime -eq "node") {
-    $null = Apply-ProjectRuntimeSettings -ProjectName $cfg.ProjectName -Scope $cfg.Scope -TokenStorePath $tokenStorePath -Region $cfg.Region -FunctionTimeoutSec $cfg.FunctionTimeoutSec -FluidEnabled $cfg.FluidEnabled
+    $null = Apply-ProjectRuntimeSettings -ProjectName $cfg.ProjectName -Scope $cfg.Scope -TokenStorePath $tokenStorePath -Region $cfg.Region -FunctionTimeoutSec $cfg.FunctionTimeoutSec -FluidEnabled $cfg.FluidEnabled -FunctionCpu $cfg.FunctionCpu
   }
   $deployInfo = Deploy-Production -Scope $cfg.Scope -Region $cfg.Region -Runtime $cfg.Runtime -TargetDomain $cfg.TargetDomain -RelayPath $cfg.RelayPath -PublicRelayPath $cfg.PublicRelayPath -RelayKey $cfg.RelayKey
   $cfg.VercelAuthentication = [string]$script:LastVercelAuthStatus
   Show-DeploySummary $deployInfo
+  if ($cfg.Runtime -eq "rewrite" -and -not [string]::IsNullOrWhiteSpace($cfg.RelayKey)) {
+    Write-Host "XHTTP Extra (client) because RELAY_KEY is enabled:" -ForegroundColor Yellow
+    $clientRelayKey = ([string]$cfg.RelayKey).Replace("\", "\\").Replace('"', '\"')
+    Write-Host '{' -ForegroundColor Cyan
+    Write-Host '  "headers": {' -ForegroundColor Cyan
+    Write-Host ('    "x-relay-key": "{0}"' -f $clientRelayKey) -ForegroundColor Cyan
+    Write-Host '  }' -ForegroundColor Cyan
+    Write-Host '}' -ForegroundColor Cyan
+    Write-Host ""
+  }
   Export-ShareableConfigSummary -cfg $cfg -AliasUrl $deployInfo.Alias
   $runTests = Read-Default "Run essential health/smoke tests now? (Y/n)" "y"
   if ($runTests.ToLowerInvariant() -ne "n") {
-    Run-HealthAndSmokeChecks -ProjectName $cfg.ProjectName -RelayPath $cfg.PublicRelayPath
+    Run-HealthAndSmokeChecks -ProjectName $cfg.ProjectName -RelayPath $cfg.PublicRelayPath -Runtime $cfg.Runtime
     if ($cfg.RunStressAfterDeploy) {
-      Write-Host "Running STRESS_TEST light pass automatically..." -ForegroundColor Yellow
+      Write-Host "Running load-test lite pass automatically..." -ForegroundColor Yellow
       Run-LoadTestLite -ProjectName $cfg.ProjectName -RelayPath $cfg.PublicRelayPath
     }
     Read-Host "Health/smoke checks finished. Press Enter to continue"
   }
   Write-Host "Done."
+  return $cfg
+}
+
+function Test-EnvTargetsProduction($Targets) {
+  $normalized = Normalize-EnvTargets $Targets
+  if ($normalized.Count -eq 0) { return $true }
+  return ($normalized -contains "production")
+}
+
+function Get-ProductionEnvRows([string]$ProjectName, [string]$Scope, [string]$TokenStorePath) {
+  $token = Get-VercelApiToken -TokenStorePath $TokenStorePath
+  if ([string]::IsNullOrWhiteSpace($token)) {
+    throw "No API token available. Use token auth mode first."
+  }
+  $envs = Get-ProjectEnvEntriesApi -ProjectName $ProjectName -Scope $Scope -Token $token -Limit 200
+  $rows = @()
+  foreach ($e in $envs) {
+    $key = [string]$e.key
+    if ([string]::IsNullOrWhiteSpace($key)) { continue }
+    if (-not (Test-EnvTargetsProduction $e.target)) { continue }
+    $targets = Normalize-EnvTargets $e.target
+    $targetText = if ($targets.Count -gt 0) { ($targets -join ",") } else { "production/all" }
+    $rows += [pscustomobject]@{
+      Key = $key
+      ValuePreview = (Get-EnvValuePreview -envObj $e)
+      Targets = $targetText
+      UpdatedAt = (Convert-ApiTimestampToText $e.updatedAt)
+    }
+  }
+  return @($rows | Sort-Object Key)
+}
+
+function Show-EnvEditTable($Rows, [hashtable]$PendingChanges) {
+  Write-Host ""
+  Write-Host "Production ENV values:" -ForegroundColor Cyan
+  if ($Rows.Count -eq 0) {
+    Write-Host "No production ENV entries found. Use A to add one." -ForegroundColor DarkYellow
+  } else {
+    for ($i = 0; $i -lt $Rows.Count; $i++) {
+      $r = $Rows[$i]
+      $value = [string]$r.ValuePreview
+      $pendingMark = ""
+      if ($PendingChanges.ContainsKey([string]$r.Key)) {
+        $value = "(pending new value)"
+        $pendingMark = " *"
+      }
+      Write-Host ("[{0}] {1}{2} = {3}  [{4}]" -f ($i + 1), $r.Key, $pendingMark, $value, $r.Targets)
+    }
+  }
+  if ($PendingChanges.Count -gt 0) {
+    Write-Host ""
+    Write-Host "Pending changes:" -ForegroundColor Yellow
+    foreach ($k in ($PendingChanges.Keys | Sort-Object)) {
+      Write-Host (" - {0} = (new value set)" -f $k) -ForegroundColor Yellow
+    }
+  }
+  Write-Host ""
+  Write-Host "[A] Add new ENV"
+  Write-Host "[C] Confirm changes and redeploy"
+  Write-Host "[0] Back to main menu"
 }
 
 function Run-UpdateEnvFlow([string]$Scope) {
-  Write-Step "Update production env vars (required + profile defaults)..."
-  $targetDomain = Read-Required "TARGET_DOMAIN (foreign inbound domain+port)"
-  Write-Host "RELAY_PATH guide: this must EXACTLY match inbound path on your foreign server." -ForegroundColor DarkYellow
-  $relayPath = Normalize-PathLike (Read-Required "RELAY_PATH (example: /api)")
-  $publicRelayPath = $relayPath
-  Write-Host ("PUBLIC_RELAY_PATH auto-set to RELAY_PATH: {0}" -f $publicRelayPath) -ForegroundColor DarkCyan
-  $landingTemplate = Read-Optional "LANDING_TEMPLATE (optional template folder name; empty keeps previous/random)"
-  $mode = Choose-DeploymentMode
-  $maxInflight = $mode.MaxInflight
-  $maxUpBps = $mode.MaxUpBps
-  $maxDownBps = $mode.MaxDownBps
-  $upstreamTimeoutMs = $mode.UpstreamTimeoutMs
-  $successLogSampleRate = Read-Default "SUCCESS_LOG_SAMPLE_RATE" "0"
-  $successLogMinDurationMs = Read-Default "SUCCESS_LOG_MIN_DURATION_MS" "3000"
-  $errorLogMinIntervalMs = Read-Default "ERROR_LOG_MIN_INTERVAL_MS" "5000"
-  $selectedRegion = if ($mode.Runtime -eq "node") { Choose-FunctionRegion -TargetDomain $targetDomain } else { "n/a (rewrite mode)" }
-  $relayKey = ""
-  if ($mode.Runtime -eq "rewrite") {
-    $relayKey = Read-Optional "RELAY_KEY (optional in rewrite mode; empty = no x-relay-key required)"
+  Write-Step "Update production ENV vars..."
+
+  $selected = Select-ProjectFromList -Scope $Scope -TokenStorePath $tokenStorePath
+  if ($null -eq $selected) {
+    Write-Host "Canceled. Returning to main menu." -ForegroundColor DarkYellow
+    return $null
   }
 
-  Set-VercelEnv -Name "TARGET_DOMAIN" -Value $targetDomain -Target "production" -Scope $Scope
-  Set-VercelEnv -Name "RELAY_PATH" -Value $relayPath -Target "production" -Scope $Scope
-  Set-VercelEnv -Name "PUBLIC_RELAY_PATH" -Value $publicRelayPath -Target "production" -Scope $Scope
-  if (-not [string]::IsNullOrWhiteSpace($landingTemplate)) {
-    Set-VercelEnv -Name "LANDING_TEMPLATE" -Value $landingTemplate -Target "production" -Scope $Scope
+  $projectName = [string]$selected.Name
+  $projectScope = $Scope
+  if ($selected.PSObject.Properties.Name -contains "Scope" -and -not [string]::IsNullOrWhiteSpace([string]$selected.Scope)) {
+    $projectScope = Normalize-ScopeForCli -Scope ([string]$selected.Scope)
   }
-  if ($mode.Runtime -eq "node") {
-    Set-VercelEnv -Name "MAX_INFLIGHT" -Value $maxInflight -Target "production" -Scope $Scope
-    Set-VercelEnv -Name "MAX_UP_BPS" -Value $maxUpBps -Target "production" -Scope $Scope
-    Set-VercelEnv -Name "MAX_DOWN_BPS" -Value $maxDownBps -Target "production" -Scope $Scope
+  Ensure-LinkedToProject -ProjectName $projectName -Scope $projectScope
+
+  $state = Load-LocalProjectDeployState -ProjectName $projectName
+  $runtime = "node"
+  $deployMode = "ENV_UPDATE"
+  $relayPath = "/api"
+  if ($null -ne $state) {
+    if (-not [string]::IsNullOrWhiteSpace([string]$state.Runtime)) { $runtime = [string]$state.Runtime }
+    if (-not [string]::IsNullOrWhiteSpace([string]$state.DeployMode)) { $deployMode = [string]$state.DeployMode }
+    if (-not [string]::IsNullOrWhiteSpace([string]$state.RelayPath)) { $relayPath = [string]$state.RelayPath }
   }
-  Set-VercelEnv -Name "UPSTREAM_TIMEOUT_MS" -Value $upstreamTimeoutMs -Target "production" -Scope $Scope
-  Set-VercelEnv -Name "SUCCESS_LOG_SAMPLE_RATE" -Value $successLogSampleRate -Target "production" -Scope $Scope
-  Set-VercelEnv -Name "SUCCESS_LOG_MIN_DURATION_MS" -Value $successLogMinDurationMs -Target "production" -Scope $Scope
-  Set-VercelEnv -Name "ERROR_LOG_MIN_INTERVAL_MS" -Value $errorLogMinIntervalMs -Target "production" -Scope $Scope
-  if (-not [string]::IsNullOrWhiteSpace($relayKey)) {
-    Set-VercelEnv -Name "RELAY_KEY" -Value $relayKey -Target "production" -Scope $Scope
-  }
-  $fnTimeoutSec = [int]$mode.FunctionTimeoutSec
-  $linkInfo = Get-LinkedProjectInfo -ProjectRoot $scriptDir
-  if ($mode.Runtime -eq "node" -and -not [string]::IsNullOrWhiteSpace($linkInfo.ProjectName)) {
-    $null = Apply-ProjectRuntimeSettings -ProjectName $linkInfo.ProjectName -Scope $Scope -TokenStorePath $tokenStorePath -Region $selectedRegion -FunctionTimeoutSec $fnTimeoutSec -FluidEnabled $mode.FluidEnabled
-  } else {
-    Write-Host "Runtime settings sync skipped (rewrite mode or linked project not detected)." -ForegroundColor DarkYellow
-  }
-  $redeployNow = Read-Default "Redeploy now? (Y/n)" "y"
-  if ($redeployNow.ToLowerInvariant() -eq "y") {
-    $deployInfo = Deploy-Production -Scope $Scope -Region $selectedRegion -Runtime $mode.Runtime -TargetDomain $targetDomain -RelayPath $relayPath -PublicRelayPath $publicRelayPath -RelayKey $relayKey
-    Show-DeploySummary $deployInfo
-    $cfgSummary = @{
-      ProjectName = $linkInfo.ProjectName
-      Scope = $Scope
-      DeployMode = $mode.ModeKey
-      Runtime = $mode.Runtime
-      FluidEnabled = [bool]$mode.FluidEnabled
-      FunctionTimeoutSec = $fnTimeoutSec
-      TargetDomain = $targetDomain
-      RelayPath = $relayPath
-      PublicRelayPath = $publicRelayPath
-      LandingTemplate = $landingTemplate
-      Region = $selectedRegion
-      MaxInflight = $maxInflight
-      MaxUpBps = $maxUpBps
-      MaxDownBps = $maxDownBps
-      UpstreamTimeoutMs = $upstreamTimeoutMs
-      SuccessLogSampleRate = $successLogSampleRate
-      SuccessLogMinDurationMs = $successLogMinDurationMs
-      ErrorLogMinIntervalMs = $errorLogMinIntervalMs
-      RelayKey = $relayKey
-      VercelAuthentication = [string]$script:LastVercelAuthStatus
+  if ($runtime -eq "rewrite") {
+    Write-Host "Note: this project is marked as FAST_PIPE_REWRITE_SECURE locally. Rewrite deploys do not use Node ENV vars." -ForegroundColor DarkYellow
+    $continue = Read-Default "Continue editing ENV and redeploy as Node runtime? (y/N)" "n"
+    if ($continue.ToLowerInvariant() -ne "y") {
+      Write-Host "Canceled. Returning to main menu." -ForegroundColor DarkYellow
+      return $null
     }
-    Export-ShareableConfigSummary -cfg $cfgSummary -AliasUrl $deployInfo.Alias
-    $runTests = Read-Default "Run essential health/smoke tests now? (Y/n)" "y"
-    if ($runTests.ToLowerInvariant() -ne "n") {
-      $link = Get-LinkedProjectInfo -ProjectRoot $scriptDir
-      if (-not [string]::IsNullOrWhiteSpace($link.ProjectName)) {
-        Run-HealthAndSmokeChecks -ProjectName $link.ProjectName -RelayPath $publicRelayPath
-        if ($mode.RunStressAfterDeploy) {
-          Write-Host "Running STRESS_TEST light pass automatically..." -ForegroundColor Yellow
-          Run-LoadTestLite -ProjectName $link.ProjectName -RelayPath $publicRelayPath
+    $runtime = "node"
+    $deployMode = "ENV_UPDATE_NODE"
+  }
+
+  $rows = Get-ProductionEnvRows -ProjectName $projectName -Scope $projectScope -TokenStorePath $tokenStorePath
+  $pending = @{}
+
+  while ($true) {
+    Show-EnvEditTable -Rows $rows -PendingChanges $pending
+    $pick = Read-Host "Select ENV number, A, C, or 0"
+    if ([string]::IsNullOrWhiteSpace($pick)) { continue }
+    $p = $pick.Trim()
+    if ($p -eq "0") {
+      Write-Host "Canceled. No ENV changes applied." -ForegroundColor DarkYellow
+      return $null
+    }
+    if ($p.ToLowerInvariant() -eq "a") {
+      $newKey = Read-Required "New ENV key"
+      $newKey = $newKey.Trim()
+      if ($newKey -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+        Write-Host "Invalid ENV key. Use letters, numbers and underscore; first char must not be a number." -ForegroundColor Red
+        continue
+      }
+      $newVal = Read-Host ("New value for {0}" -f $newKey)
+      $pending[$newKey] = [string]$newVal
+      if (-not (@($rows | Where-Object { [string]$_.Key -eq $newKey }).Count -gt 0)) {
+        $rows += [pscustomobject]@{
+          Key = $newKey
+          ValuePreview = "(new)"
+          Targets = "production"
+          UpdatedAt = "-"
         }
-        Read-Host "Health/smoke checks finished. Press Enter to continue"
+        $rows = @($rows | Sort-Object Key)
+      }
+      continue
+    }
+    if ($p.ToLowerInvariant() -eq "c") {
+      if ($pending.Count -eq 0) {
+        Write-Host "No pending ENV changes to apply." -ForegroundColor DarkYellow
+        continue
+      }
+      Write-Host ""
+      Write-Host "Final confirmation:" -ForegroundColor Yellow
+      foreach ($k in ($pending.Keys | Sort-Object)) {
+        Write-Host (" - {0} = (new value set)" -f $k) -ForegroundColor Yellow
+      }
+      $confirm = Read-Default "Apply these ENV changes and redeploy now? (y/N)" "n"
+      if ($confirm.ToLowerInvariant() -ne "y") {
+        Write-Host "Canceled. No ENV changes applied." -ForegroundColor DarkYellow
+        return $null
+      }
+
+      foreach ($k in ($pending.Keys | Sort-Object)) {
+        Set-VercelEnv -Name $k -Value ([string]$pending[$k]) -Target "production" -Scope $projectScope
+      }
+
+      $deployInfo = Deploy-Production -Scope $projectScope -Runtime "node"
+      Show-DeploySummary $deployInfo
+
+      Save-LocalProjectDeployState -ProjectName $projectName -Scope $projectScope -DeployMode $deployMode -Runtime $runtime -RelayPath $relayPath
+      Write-Host "ENV update and redeploy complete." -ForegroundColor Green
+
+      return @{
+        ProjectName = $projectName
+        Scope = $projectScope
+        DeployMode = $deployMode
+        Runtime = $runtime
+        Deployed = $true
+        RelayPath = $relayPath
+        PublicRelayPath = $relayPath
       }
     }
+
+    $n = 0
+    if (-not [int]::TryParse($p, [ref]$n)) {
+      Write-Host "Invalid selection." -ForegroundColor Red
+      continue
+    }
+    if ($n -lt 1 -or $n -gt $rows.Count) {
+      Write-Host "Out of range." -ForegroundColor Red
+      continue
+    }
+
+    $key = [string]$rows[$n - 1].Key
+    $newValue = Read-Host ("New value for {0}" -f $key)
+    $pending[$key] = [string]$newValue
   }
 }
 
@@ -1413,11 +1686,12 @@ function Show-DeploymentList([string]$ProjectName, [string]$Scope) {
   $args = @("list")
   if (-not [string]::IsNullOrWhiteSpace($ProjectName)) { $args += @($ProjectName) }
   if (-not [string]::IsNullOrWhiteSpace($Scope)) { $args += @("--scope", $Scope) }
+  $args += (Get-VercelTokenArgs)
   $result = Invoke-NativeSafe -FilePath $VercelExe -Arguments $args
   $result.Output | Out-Host
   if ($result.ExitCode -ne 0) {
     Write-Host "Could not list deployments with scoped project. Trying generic list..." -ForegroundColor DarkYellow
-    $fallback = Invoke-NativeSafe -FilePath $VercelExe -Arguments @("list")
+    $fallback = Invoke-NativeSafe -FilePath $VercelExe -Arguments (@("list") + (Get-VercelTokenArgs))
     $fallback.Output | Out-Host
   }
 }
@@ -1426,6 +1700,21 @@ function Ensure-LinkedToProject([string]$ProjectName, [string]$Scope) {
   if ([string]::IsNullOrWhiteSpace($ProjectName)) {
     throw "Project name is required."
   }
+  $token = Get-VercelApiToken -TokenStorePath $tokenStorePath
+  if (-not [string]::IsNullOrWhiteSpace($token)) {
+    $apiInfo = Resolve-ProjectApiInfo -ProjectName $ProjectName -Scope $Scope -Token $token
+    if ($null -ne $apiInfo -and -not [string]::IsNullOrWhiteSpace([string]$apiInfo.Id) -and -not [string]::IsNullOrWhiteSpace([string]$apiInfo.AccountId)) {
+      Write-Step "Linking local folder to Vercel project from token/API..."
+      Clear-LocalVercelProjectLink -ProjectRoot $scriptDir
+      Write-LocalVercelProjectLink -ProjectName $ProjectName -ProjectId ([string]$apiInfo.Id) -OrgId ([string]$apiInfo.AccountId) -ProjectRoot $scriptDir
+      if ($apiInfo.PSObject.Properties.Name -contains "Scope" -and -not [string]::IsNullOrWhiteSpace([string]$apiInfo.Scope)) {
+        Save-Scope -Scope ([string]$apiInfo.Scope) -Path $scopeStorePath
+      }
+      return
+    }
+  }
+
+  Write-Host "API link metadata not available. Falling back to Vercel CLI link." -ForegroundColor DarkYellow
   Link-VercelProject -ProjectName $ProjectName -Scope $Scope
 }
 
@@ -1452,10 +1741,112 @@ function Parse-ProjectListText([string[]]$Lines) {
   return @($projects | Sort-Object Name -Unique)
 }
 
-function Get-ProjectsFromVercel([string]$Scope) {
+function Get-ProjectsFromVercelApi([string]$Scope, [string]$TokenStorePath) {
+  $token = Get-VercelApiToken -TokenStorePath $TokenStorePath
+  if ([string]::IsNullOrWhiteSpace($token)) { return @() }
+
+  $scopeCandidates = New-Object System.Collections.ArrayList
+  $seenScopes = @{}
+  $appendScope = {
+    param([string]$s)
+    $normalized = ""
+    if (-not [string]::IsNullOrWhiteSpace($s)) { $normalized = ([string]$s).Trim() }
+    $k = if ([string]::IsNullOrWhiteSpace($normalized)) { "__personal__" } else { $normalized }
+    if ($seenScopes.ContainsKey($k)) { return }
+    $seenScopes[$k] = $true
+    [void]$scopeCandidates.Add($normalized)
+  }
+
+  # Always include personal context.
+  & $appendScope ""
+
+  # Scope from user/session is preferred, but not trusted as the only source.
+  if (-not [string]::IsNullOrWhiteSpace($Scope)) {
+    & $appendScope $Scope
+    if ($Scope.StartsWith("team_")) {
+      $slugFromTeamId = Try-ResolveTeamSlugFromTeamId -TeamId $Scope -Token $token
+      if (-not [string]::IsNullOrWhiteSpace($slugFromTeamId)) { & $appendScope $slugFromTeamId }
+    }
+  }
+
+  # Saved scope (from previous successful runs).
+  $savedScope = Normalize-ScopeForCli -Scope (Load-Scope -Path $scopeStorePath)
+  if (-not [string]::IsNullOrWhiteSpace($savedScope)) { & $appendScope $savedScope }
+
+  # Team ids/slugs from API.
+  try {
+    $teamsResp = Invoke-VercelApiGet -Path "/v2/teams?limit=100" -Token $token -Scope ""
+    if ($null -ne $teamsResp -and $null -ne $teamsResp.teams) {
+      foreach ($t in $teamsResp.teams) {
+        if ($t.id) { & $appendScope ([string]$t.id) }
+        if ($t.slug) { & $appendScope ([string]$t.slug) }
+      }
+    }
+  } catch {}
+
+  # Team slugs from CLI discovery (extra fallback).
+  try {
+    foreach ($slug in (Get-VercelTeamSlugs)) {
+      if (-not [string]::IsNullOrWhiteSpace($slug)) { & $appendScope ([string]$slug) }
+    }
+  } catch {}
+
+  $results = @()
+  $seen = @{}
+  foreach ($sc in $scopeCandidates) {
+    try {
+      $resp = Invoke-VercelApiGet -Path "/v9/projects?limit=100" -Token $token -Scope $sc
+      if ($null -eq $resp -or $null -eq $resp.projects) { continue }
+      foreach ($p in $resp.projects) {
+        $name = if ($p.name) { [string]$p.name } else { "" }
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        $projectId = if ($p.id) { [string]$p.id } else { "" }
+        $dedupeKey = if (-not [string]::IsNullOrWhiteSpace($projectId)) { $projectId } else { "$name|$sc" }
+        if ($seen.ContainsKey($dedupeKey)) { continue }
+        $seen[$dedupeKey] = $true
+        $ownerScope = ""
+        $accountId = ""
+        if ($p.PSObject.Properties.Name -contains "accountId" -and $p.accountId) {
+          $accountId = [string]$p.accountId
+          if ($accountId.StartsWith("team_")) {
+            $slug = Try-ResolveTeamSlugFromTeamId -TeamId $accountId -Token $token
+            $ownerScope = if (-not [string]::IsNullOrWhiteSpace($slug)) { $slug } else { $accountId }
+          }
+        }
+        if ([string]::IsNullOrWhiteSpace($accountId)) {
+          try {
+            $userResp = Invoke-VercelApiGet -Path "/v2/user" -Token $token -Scope ""
+            if ($null -ne $userResp -and $null -ne $userResp.user -and $userResp.user.id) {
+              $accountId = [string]$userResp.user.id
+            }
+          } catch {}
+        }
+        if ([string]::IsNullOrWhiteSpace($ownerScope) -and -not [string]::IsNullOrWhiteSpace($sc)) {
+          if ($sc.StartsWith("team_")) {
+            $slugFromScope = Try-ResolveTeamSlugFromTeamId -TeamId $sc -Token $token
+            if (-not [string]::IsNullOrWhiteSpace($slugFromScope)) { $ownerScope = $slugFromScope }
+          } else {
+            $ownerScope = Normalize-ScopeForCli -Scope $sc
+          }
+        }
+        $results += [PSCustomObject]@{
+          Name = $name
+          Id = $projectId
+          Scope = $ownerScope
+          AccountId = $accountId
+        }
+      }
+    } catch {}
+  }
+
+  return @($results | Sort-Object Name, Scope)
+}
+
+function Get-ProjectsFromVercel([string]$Scope, [string]$TokenStorePath = "") {
   $Scope = Normalize-ScopeForCli -Scope $Scope
   $args = @("project", "list", "--format", "json", "--no-color")
   if (-not [string]::IsNullOrWhiteSpace($Scope)) { $args += @("--scope", $Scope) }
+  $args += (Get-VercelTokenArgs)
   $result = Invoke-NativeSafe -FilePath $VercelExe -Arguments $args
 
   if ($result.ExitCode -eq 0) {
@@ -1526,6 +1917,7 @@ function Get-ProjectsFromVercel([string]$Scope) {
   foreach ($cmd in $fallbackCommands) {
     $fallbackArgs = @($cmd)
     if (-not [string]::IsNullOrWhiteSpace($Scope)) { $fallbackArgs += @("--scope", $Scope) }
+    $fallbackArgs += (Get-VercelTokenArgs)
     $fallback = Invoke-NativeSafe -FilePath $VercelExe -Arguments $fallbackArgs
     if ($fallback.ExitCode -ne 0) { continue }
 
@@ -1533,13 +1925,31 @@ function Get-ProjectsFromVercel([string]$Scope) {
     if ($parsedText.Count -gt 0) { return $parsedText }
   }
 
+  # Final fallback: query projects via Vercel API (token mode/session token).
+  $apiProjects = Get-ProjectsFromVercelApi -Scope $Scope -TokenStorePath $TokenStorePath
+  if ($apiProjects.Count -gt 0) { return $apiProjects }
+
   throw "Could not parse Vercel project list. Try auth mode 2 (token) or set a valid scope."
 }
 
-function Select-ProjectFromList([string]$Scope) {
+function Get-ProjectsForSelection([string]$Scope, [string]$TokenStorePath = "") {
+  $Scope = Normalize-ScopeForCli -Scope $Scope
+
+  # API-first list: independent from local .vercel and more reliable in token mode.
+  $apiProjects = @()
+  try {
+    $apiProjects = Get-ProjectsFromVercelApi -Scope $Scope -TokenStorePath $TokenStorePath
+  } catch {}
+  if ($apiProjects.Count -gt 0) { return $apiProjects }
+
+  # CLI fallback when API cannot return items in current context.
+  return (Get-ProjectsFromVercel -Scope $Scope -TokenStorePath $TokenStorePath)
+}
+
+function Select-ProjectFromList([string]$Scope, [string]$TokenStorePath = "") {
   Write-Step "Loading projects from Vercel..."
   try {
-    $projects = Get-ProjectsFromVercel -Scope $Scope
+    $projects = Get-ProjectsForSelection -Scope $Scope -TokenStorePath $TokenStorePath
   } catch {
     Write-Host "Could not load project list: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "Tip: continue with option 5 (Deploy as NEW project), or retry with token auth." -ForegroundColor DarkYellow
@@ -1553,7 +1963,11 @@ function Select-ProjectFromList([string]$Scope) {
   Write-Host ""
   Write-Host "Projects:" -ForegroundColor Cyan
   for ($i = 0; $i -lt $projects.Count; $i++) {
-    Write-Host ("[{0}] {1}" -f ($i + 1), $projects[$i].Name)
+    $scopeText = ""
+    if ($projects[$i].PSObject.Properties.Name -contains "Scope" -and -not [string]::IsNullOrWhiteSpace([string]$projects[$i].Scope)) {
+      $scopeText = "  (scope: $([string]$projects[$i].Scope))"
+    }
+    Write-Host ("[{0}] {1}{2}" -f ($i + 1), $projects[$i].Name, $scopeText)
   }
   Write-Host "[0] Cancel"
 
@@ -1572,10 +1986,10 @@ function Select-ProjectFromList([string]$Scope) {
   }
 }
 
-function Select-ProjectOrNewForFirstRun([string]$Scope) {
-  Write-Step "No linked project found. Loading your Vercel projects..."
+function Select-ProjectOrNewForFirstRun([string]$Scope, [string]$TokenStorePath = "") {
+  Write-Step "Loading your Vercel projects from token/API..."
   try {
-    $projects = Get-ProjectsFromVercel -Scope $Scope
+    $projects = Get-ProjectsForSelection -Scope $Scope -TokenStorePath $TokenStorePath
   } catch {
     Write-Host "Could not load projects list. Continuing with NEW-project flow." -ForegroundColor DarkYellow
     Write-Host "Details: $($_.Exception.Message)" -ForegroundColor DarkGray
@@ -1586,7 +2000,11 @@ function Select-ProjectOrNewForFirstRun([string]$Scope) {
   Write-Host "Choose a target to continue:" -ForegroundColor Cyan
   if ($projects.Count -gt 0) {
     for ($i = 0; $i -lt $projects.Count; $i++) {
-      Write-Host ("[{0}] Use existing project: {1}" -f ($i + 1), $projects[$i].Name)
+      $scopeText = ""
+      if ($projects[$i].PSObject.Properties.Name -contains "Scope" -and -not [string]::IsNullOrWhiteSpace([string]$projects[$i].Scope)) {
+        $scopeText = "  (scope: $([string]$projects[$i].Scope))"
+      }
+      Write-Host ("[{0}] Use existing project: {1}{2}" -f ($i + 1), $projects[$i].Name, $scopeText)
     }
   } else {
     Write-Host "No existing projects found in current scope/account." -ForegroundColor DarkYellow
@@ -1607,6 +2025,7 @@ function Select-ProjectOrNewForFirstRun([string]$Scope) {
       return @{
         Mode = "new"
         ProjectName = ""
+        Scope = ""
       }
     }
 
@@ -1614,6 +2033,7 @@ function Select-ProjectOrNewForFirstRun([string]$Scope) {
       return @{
         Mode = "existing"
         ProjectName = $projects[$n - 1].Name
+        Scope = if ($projects[$n - 1].PSObject.Properties.Name -contains "Scope") { [string]$projects[$n - 1].Scope } else { "" }
       }
     }
 
@@ -1682,6 +2102,40 @@ function Invoke-VercelApiDelete([string]$Path, [string]$Token, [string]$Scope) {
   }
   $headers = @{ Authorization = "Bearer $Token" }
   return Invoke-RestMethod -Method Delete -Uri $url -Headers $headers
+}
+
+function Invoke-VercelApiGetJsonLines([string]$Path, [string]$Token, [string]$Scope) {
+  if ([string]::IsNullOrWhiteSpace($Token)) {
+    throw "Vercel token is required for API mode."
+  }
+  $url = "https://api.vercel.com$Path"
+  $scopeQuery = New-ScopeQuery -Scope $Scope
+  if (-not [string]::IsNullOrWhiteSpace($scopeQuery)) {
+    if ($url.Contains("?")) { $url = "$url&$scopeQuery" } else { $url = "$url?$scopeQuery" }
+  }
+  $headers = @{
+    Authorization = "Bearer $Token"
+    Accept = "application/json"
+  }
+  $resp = Invoke-WebRequest -Method Get -Uri $url -Headers $headers -UseBasicParsing -TimeoutSec 60
+  $content = ""
+  if ($resp.Content -is [byte[]]) {
+    $content = [System.Text.Encoding]::UTF8.GetString([byte[]]$resp.Content)
+  } else {
+    $content = [string]$resp.Content
+  }
+  if ([string]::IsNullOrWhiteSpace($content)) { return @() }
+  $items = @()
+  foreach ($lineRaw in ($content -split "`n")) {
+    $line = ([string]$lineRaw).Trim()
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+    try {
+      $items += ($line | ConvertFrom-Json -ErrorAction Stop)
+    } catch {
+      # Some hosts return the whole JSONL body as escaped bytes; ignore non-json fragments.
+    }
+  }
+  return @($items)
 }
 
 function Try-ResolveTeamSlugFromTeamId([string]$TeamId, [string]$Token) {
@@ -1963,6 +2417,313 @@ function Build-ScopeCandidates([string]$Scope, [string]$Token, [string]$ProjectR
   return @($candidates | Where-Object { $_ -ne $null } | Select-Object -Unique)
 }
 
+function Get-ObjectPropertyValue($Obj, [string[]]$Names) {
+  if ($null -eq $Obj) { return $null }
+  foreach ($name in $Names) {
+    if ($Obj.PSObject.Properties.Name -contains $name) {
+      return $Obj.$name
+    }
+  }
+  return $null
+}
+
+function Convert-ToDoubleSafe($Value, [double]$Default = 0) {
+  if ($null -eq $Value) { return $Default }
+  try {
+    $s = ([string]$Value).Trim()
+    if ([string]::IsNullOrWhiteSpace($s)) { return $Default }
+    return [double]::Parse($s, [System.Globalization.CultureInfo]::InvariantCulture)
+  } catch {
+    return $Default
+  }
+}
+
+function Format-CompactNumber([double]$Value) {
+  $abs = [Math]::Abs($Value)
+  if ($abs -ge 1000000000) { return ("{0:N2}B" -f ($Value / 1000000000)) }
+  if ($abs -ge 1000000) { return ("{0:N2}M" -f ($Value / 1000000)) }
+  if ($abs -ge 1000) { return ("{0:N1}K" -f ($Value / 1000)) }
+  if ([Math]::Abs($Value - [Math]::Round($Value)) -lt 0.001) { return ("{0:N0}" -f $Value) }
+  return ("{0:N2}" -f $Value)
+}
+
+function Format-DurationHours([double]$Hours) {
+  if ($Hours -lt 0) { $Hours = 0 }
+  if ($Hours -lt 1) {
+    return ("{0:N0}m" -f ($Hours * 60))
+  }
+  $whole = [Math]::Floor($Hours)
+  $mins = [Math]::Round(($Hours - $whole) * 60)
+  if ($mins -le 0) { return ("{0:N0}h" -f $whole) }
+  return ("{0:N0}h {1:N0}m" -f $whole, $mins)
+}
+
+function Get-BillingLimitCatalog {
+  # Vercel does not always include plan allowance values in FOCUS charge rows.
+  # These defaults mirror the visible Pro usage panel and are shown as estimated plan allowances.
+  return @{
+    "fast data transfer" = @{ Quantity = 100; Unit = "gigabyte"; Label = "100 GB" }
+    "fast origin transfer" = @{ Quantity = 10; Unit = "gigabyte"; Label = "10 GB" }
+    "edge requests" = @{ Quantity = 1000000; Unit = "requests"; Label = "1M" }
+    "function invocations" = @{ Quantity = 1000000; Unit = "invocations"; Label = "1M" }
+    "fluid active cpu" = @{ Quantity = 4; Unit = "hour"; Label = "4h" }
+    "fluid provisioned memory" = @{ Quantity = 360; Unit = "gigabyte-hour"; Label = "360 GB-Hrs" }
+    "edge request cpu duration" = @{ Quantity = 1; Unit = "hour"; Label = "1h" }
+    "edge requests - additional cpu duration" = @{ Quantity = 1; Unit = "hour"; Label = "1h" }
+    "microfrontends routing" = @{ Quantity = 50000; Unit = "requests"; Label = "50K" }
+    "isr reads" = @{ Quantity = 1000000; Unit = "reads"; Label = "1M" }
+    "isr writes" = @{ Quantity = 200000; Unit = "writes"; Label = "200K" }
+  }
+}
+
+function Normalize-BillingServiceName([string]$ServiceName) {
+  $s = Collapse-Whitespace -Text $ServiceName
+  if ([string]::IsNullOrWhiteSpace($s)) { return "Unknown" }
+  if ($s -match "(?i)^edge requests.*additional cpu duration") { return "Edge Requests - Additional CPU Duration" }
+  if ($s -match "(?i)^edge request cpu duration") { return "Edge Request CPU Duration" }
+  return $s
+}
+
+function Convert-BillingQuantityForDisplay([double]$Quantity, [string]$Unit, [string]$ServiceName) {
+  $u = ([string]$Unit).Trim().ToLowerInvariant()
+  $name = ([string]$ServiceName).Trim().ToLowerInvariant()
+  $value = $Quantity
+  $unitLabel = $Unit
+  if ($u -match "gigabyte-hour|gb-?hrs|gb-?hours") {
+    return @{ Value = $value; Unit = "gigabyte-hour"; Text = ("{0:N1} GB-Hrs" -f $value) }
+  }
+  if ($u -match "byte" -and $u -notmatch "gigabyte") {
+    $gb = $value / 1GB
+    return @{ Value = $gb; Unit = "gigabyte"; Text = ("{0:N2} GB" -f $gb) }
+  }
+  if ($u -match "gigabyte|gibibyte|\bgb\b" -or $name -match "transfer") {
+    return @{ Value = $value; Unit = "gigabyte"; Text = ("{0:N2} GB" -f $value) }
+  }
+  if ($u -match "second") {
+    $hours = $value / 3600
+    return @{ Value = $hours; Unit = "hour"; Text = (Format-DurationHours -Hours $hours) }
+  }
+  if ($u -match "minute") {
+    $hours = $value / 60
+    return @{ Value = $hours; Unit = "hour"; Text = (Format-DurationHours -Hours $hours) }
+  }
+  if ($u -match "hour" -or $name -match "cpu") {
+    return @{ Value = $value; Unit = "hour"; Text = (Format-DurationHours -Hours $value) }
+  }
+  if ($u -match "request|invocation|read|write|project|transformation") {
+    return @{ Value = $value; Unit = $u; Text = (Format-CompactNumber -Value $value) }
+  }
+  if ([string]::IsNullOrWhiteSpace($unitLabel)) { $unitLabel = "units" }
+  return @{ Value = $value; Unit = $u; Text = ("{0} {1}" -f (Format-CompactNumber -Value $value), $unitLabel) }
+}
+
+function Get-BillingUsageRatioText([string]$ServiceName, [double]$Quantity, [string]$Unit) {
+  $display = Convert-BillingQuantityForDisplay -Quantity $Quantity -Unit $Unit -ServiceName $ServiceName
+  $limits = Get-BillingLimitCatalog
+  $key = ([string](Normalize-BillingServiceName -ServiceName $ServiceName)).ToLowerInvariant()
+  if (-not $limits.ContainsKey($key)) {
+    return [string]$display.Text
+  }
+  $limit = $limits[$key]
+  return ("{0} / {1}" -f [string]$display.Text, [string]$limit.Label)
+}
+
+function Get-BillingRowColor([string]$ServiceName, [double]$Quantity, [string]$Unit, [double]$Cost) {
+  $display = Convert-BillingQuantityForDisplay -Quantity $Quantity -Unit $Unit -ServiceName $ServiceName
+  $limits = Get-BillingLimitCatalog
+  $key = ([string](Normalize-BillingServiceName -ServiceName $ServiceName)).ToLowerInvariant()
+  if ($limits.ContainsKey($key)) {
+    $lim = [double]$limits[$key].Quantity
+    if ($lim -gt 0) {
+      $ratio = [double]$display.Value / $lim
+      if ($ratio -ge 1) { return "Red" }
+      if ($ratio -ge 0.8) { return "Yellow" }
+    }
+  }
+  if ($Cost -gt 0) { return "Yellow" }
+  return "Gray"
+}
+
+function Get-VercelBillingCharges([string]$Scope, [string]$TokenStorePath, [DateTime]$From, [DateTime]$To) {
+  $token = Get-VercelApiToken -TokenStorePath $TokenStorePath
+  if ([string]::IsNullOrWhiteSpace($token)) {
+    throw "No API token available. Use token auth mode first."
+  }
+  $fromIso = $From.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+  $toIso = $To.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+  $path = "/v1/billing/charges?from=$([uri]::EscapeDataString($fromIso))&to=$([uri]::EscapeDataString($toIso))"
+  $scopeCandidates = Build-ScopeCandidates -Scope $Scope -Token $token -ProjectRoot $scriptDir
+  $lastErr = ""
+  foreach ($sc in $scopeCandidates) {
+    try {
+      $rows = Invoke-VercelApiGetJsonLines -Path $path -Token $token -Scope $sc
+      return @{
+        Scope = $sc
+        Rows = @($rows)
+      }
+    } catch {
+      $lastErr = Get-ApiErrorText $_
+    }
+  }
+  throw ("Could not load billing usage from Vercel API. {0}" -f $lastErr)
+}
+
+function Get-BillingProjectTagText($Row, [string]$TagName) {
+  try {
+    if ($null -eq $Row.Tags) { return "" }
+    if ($Row.Tags.PSObject.Properties.Name -contains $TagName) {
+      return [string]$Row.Tags.$TagName
+    }
+  } catch {}
+  return ""
+}
+
+function Show-BillingUsageMonitor([string]$ProjectName, [string]$Scope, [string]$TokenStorePath) {
+  Write-Step "Billing / Usage monitor"
+  Write-Host "Data source: Vercel REST API /v1/billing/charges (FOCUS JSONL)." -ForegroundColor Cyan
+  Write-Host "Plan limits shown as 23GB/100GB style are estimated Pro allowances when Vercel does not return limits in charge rows." -ForegroundColor DarkGray
+  Write-Host ""
+  Write-Host "[0] Back to main menu"
+  Write-Host "[1] Current month to date (default)"
+  Write-Host "[2] Last 7 days"
+  Write-Host "[3] Last 30 days"
+  Write-Host "[4] Custom date range"
+  $pick = Read-Default "Select billing window" "1"
+  if ($pick -eq "0") { return }
+
+  $now = Get-Date
+  $from = Get-Date -Year $now.Year -Month $now.Month -Day 1 -Hour 0 -Minute 0 -Second 0
+  $to = $now
+  switch ($pick) {
+    "2" { $from = $now.AddDays(-7) }
+    "3" { $from = $now.AddDays(-30) }
+    "4" {
+      $fromRaw = Read-Default "From date (YYYY-MM-DD, 0 = Back)" $from.ToString("yyyy-MM-dd")
+      if ($fromRaw -eq "0") { return }
+      $toRaw = Read-Default "To date (YYYY-MM-DD)" $now.ToString("yyyy-MM-dd")
+      try {
+        $from = [DateTime]::ParseExact($fromRaw, "yyyy-MM-dd", [System.Globalization.CultureInfo]::InvariantCulture)
+        $to = ([DateTime]::ParseExact($toRaw, "yyyy-MM-dd", [System.Globalization.CultureInfo]::InvariantCulture)).AddDays(1).AddSeconds(-1)
+      } catch {
+        throw "Invalid date format. Use YYYY-MM-DD."
+      }
+    }
+  }
+
+  $filterProject = $false
+  if (-not [string]::IsNullOrWhiteSpace($ProjectName)) {
+    $ans = Read-Default ("Filter to selected project '{0}' only? (y/N)" -f $ProjectName) "n"
+    $filterProject = ($ans.ToLowerInvariant() -eq "y")
+  }
+
+  $loaded = Get-VercelBillingCharges -Scope $Scope -TokenStorePath $TokenStorePath -From $from -To $to
+  $rows = @($loaded.Rows)
+  if ($filterProject) {
+    $rows = @($rows | Where-Object {
+      (Get-BillingProjectTagText -Row $_ -TagName "ProjectName") -eq $ProjectName
+    })
+  }
+
+  Write-Host ""
+  Write-Host ("Window: {0} -> {1}" -f $from.ToString("yyyy-MM-dd HH:mm"), $to.ToString("yyyy-MM-dd HH:mm")) -ForegroundColor Cyan
+  if (-not [string]::IsNullOrWhiteSpace([string]$loaded.Scope)) {
+    Write-Host ("Scope used: {0}" -f [string]$loaded.Scope) -ForegroundColor DarkGray
+  }
+  if ($filterProject) {
+    Write-Host ("Project filter: {0}" -f $ProjectName) -ForegroundColor DarkGray
+  }
+
+  if ($rows.Count -eq 0) {
+    Write-Host "No billing usage rows returned for this window/filter." -ForegroundColor DarkYellow
+    return
+  }
+
+  $groups = @{}
+  foreach ($r in $rows) {
+    $service = [string](Get-ObjectPropertyValue -Obj $r -Names @("ServiceName", "serviceName", "Product", "product"))
+    $service = Normalize-BillingServiceName -ServiceName $service
+    $unit = [string](Get-ObjectPropertyValue -Obj $r -Names @("ConsumedUnit", "consumedUnit", "Unit", "unit"))
+    $qty = Convert-ToDoubleSafe (Get-ObjectPropertyValue -Obj $r -Names @("ConsumedQuantity", "consumedQuantity", "UsageQuantity", "usageQuantity", "quantity"))
+    $billed = Convert-ToDoubleSafe (Get-ObjectPropertyValue -Obj $r -Names @("BilledCost", "billedCost", "Charge", "charge", "Cost", "cost"))
+    $effective = Convert-ToDoubleSafe (Get-ObjectPropertyValue -Obj $r -Names @("EffectiveCost", "effectiveCost", "PricingQuantity", "pricingQuantity"))
+    $category = [string](Get-ObjectPropertyValue -Obj $r -Names @("ServiceCategory", "serviceCategory", "ChargeCategory", "chargeCategory"))
+    if ([string]::IsNullOrWhiteSpace($service)) { $service = "Unknown" }
+    if (-not $groups.ContainsKey($service)) {
+      $groups[$service] = [pscustomobject]@{
+        Service = $service
+        Category = $category
+        Unit = $unit
+        Quantity = 0.0
+        BilledCost = 0.0
+        EffectiveCost = 0.0
+      }
+    }
+    $groups[$service].Quantity += $qty
+    $groups[$service].BilledCost += $billed
+    $groups[$service].EffectiveCost += $effective
+    if ([string]::IsNullOrWhiteSpace([string]$groups[$service].Unit) -and -not [string]::IsNullOrWhiteSpace($unit)) {
+      $groups[$service].Unit = $unit
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$groups[$service].Category) -and -not [string]::IsNullOrWhiteSpace($category)) {
+      $groups[$service].Category = $category
+    }
+  }
+
+  $summaryRows = @()
+  foreach ($g in $groups.Values) {
+    $summaryRows += [pscustomobject]@{
+      Product = [string]$g.Service
+      Usage = (Get-BillingUsageRatioText -ServiceName ([string]$g.Service) -Quantity ([double]$g.Quantity) -Unit ([string]$g.Unit))
+      Charge = ("${0:N2}" -f ([double]$g.BilledCost))
+      Value = ("${0:N2}" -f ([double]$g.EffectiveCost))
+      RawQuantity = [double]$g.Quantity
+      RawUnit = [string]$g.Unit
+      RawCost = [double]$g.BilledCost
+    }
+  }
+
+  $totalCharge = 0.0
+  $totalValue = 0.0
+  foreach ($g in $groups.Values) {
+    $totalCharge += [double]$g.BilledCost
+    $totalValue += [double]$g.EffectiveCost
+  }
+
+  Write-Host ""
+  Write-Host "Usage summary:" -ForegroundColor Cyan
+  foreach ($row in ($summaryRows | Sort-Object @{ Expression = "RawCost"; Descending = $true }, Product)) {
+    $color = Get-BillingRowColor -ServiceName $row.Product -Quantity $row.RawQuantity -Unit $row.RawUnit -Cost $row.RawCost
+    Write-Host (" - {0}: {1} | Charge {2}" -f $row.Product, $row.Usage, $row.Charge) -ForegroundColor $color
+  }
+
+  Write-Host ""
+  Write-Host ("Total charge in this window: ${0:N2}" -f $totalCharge) -ForegroundColor Yellow
+  Write-Host ("Effective usage value before included/committed allowances: ${0:N2}" -f $totalValue) -ForegroundColor DarkGray
+  Write-Host "Note: Charge is the API billed cost for the selected window. Value is useful for seeing real resource value even when included credit covers it." -ForegroundColor DarkGray
+
+  $save = Read-Default "Save billing usage report to txt file? (y/N)" "n"
+  if ($save.ToLowerInvariant() -eq "y") {
+    $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $out = Join-Path $scriptDir ("billing-usage-{0}.txt" -f $stamp)
+    $lines = @()
+    $lines += "XHTTPRelayECO Billing Usage Report"
+    $lines += ("generated_at={0}" -f (Get-Date).ToString("yyyy-MM-dd HH:mm:ss"))
+    $lines += ("window_from={0}" -f $from.ToString("yyyy-MM-dd HH:mm:ss"))
+    $lines += ("window_to={0}" -f $to.ToString("yyyy-MM-dd HH:mm:ss"))
+    $lines += ("scope={0}" -f [string]$loaded.Scope)
+    if ($filterProject) { $lines += ("project_filter={0}" -f $ProjectName) }
+    $lines += ("total_charge_usd={0:N4}" -f $totalCharge)
+    $lines += ("effective_value_usd={0:N4}" -f $totalValue)
+    $lines += ""
+    foreach ($row in ($summaryRows | Sort-Object Product)) {
+      $lines += ("{0} | usage={1} | charge={2} | value={3}" -f $row.Product, $row.Usage, $row.Charge, $row.Value)
+    }
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllLines($out, $lines, $utf8NoBom)
+    Write-Host ("Billing report saved: {0}" -f $out) -ForegroundColor Green
+  }
+}
+
 function Get-ApiErrorText($errObj) {
   $msg = ""
   try {
@@ -2031,7 +2792,7 @@ function Disable-ProjectVercelAuthentication([string]$ProjectName, [string]$Scop
   return @{ Applied = $false; Status = "unknown"; Message = $lastErr }
 }
 
-function Apply-ProjectRuntimeSettings([string]$ProjectName, [string]$Scope, [string]$TokenStorePath, [string]$Region, [int]$FunctionTimeoutSec = 60, [bool]$FluidEnabled = $true) {
+function Apply-ProjectRuntimeSettings([string]$ProjectName, [string]$Scope, [string]$TokenStorePath, [string]$Region, [int]$FunctionTimeoutSec = 60, [bool]$FluidEnabled = $true, [string]$FunctionCpu = "") {
   if ([string]::IsNullOrWhiteSpace($ProjectName)) { return $false }
   $token = Get-VercelApiToken -TokenStorePath $TokenStorePath
   if ([string]::IsNullOrWhiteSpace($token)) {
@@ -2045,24 +2806,40 @@ function Apply-ProjectRuntimeSettings([string]$ProjectName, [string]$Scope, [str
     return $false
   }
 
-  $regionCode = "iad1"
-  if (-not [string]::IsNullOrWhiteSpace($Region)) { $regionCode = $Region.ToLowerInvariant() }
+  $regions = Normalize-RegionList -RegionText $Region
+  if ($regions.Count -eq 0) { $regions = @("iad1") }
   $timeoutMax = if ($FluidEnabled) { 800 } else { 300 }
   $timeoutSec = [Math]::Max(30, [Math]::Min($timeoutMax, $FunctionTimeoutSec))
+  $cpu = ([string]$FunctionCpu).Trim().ToLowerInvariant()
+  if ([string]::IsNullOrWhiteSpace($cpu)) {
+    $cpu = "standard"
+  }
+  if ($cpu -notin @("standard_legacy", "standard", "performance")) {
+    $cpu = "standard"
+  }
   $projectPathCandidates = @(
     "/v9/projects/$([uri]::EscapeDataString($projectId))",
     "/v9/projects/$([uri]::EscapeDataString($ProjectName))"
   )
 
-  # Keep payloads aligned with Vercel project update schema variants.
-  # Some accounts reject mixed top-level keys and return HTTP 400.
+  $fullResourceConfig = @{
+    fluid = $FluidEnabled
+    functionDefaultTimeout = $timeoutSec
+    functionDefaultRegions = @($regions)
+    functionDefaultMemoryType = $cpu
+  }
+
+  # Keep fallbacks aligned with Vercel project update schema variants.
+  # Some accounts reject specific resource keys depending on plan/feature flags.
   $payloads = @(
-    @{ resourceConfig = @{ fluid = $FluidEnabled; functionDefaultTimeout = $timeoutSec; functionDefaultRegions = @($regionCode) } },
-    @{ resourceConfig = @{ fluid = $FluidEnabled; functionDefaultTimeout = $timeoutSec } },
-    @{ resourceConfig = @{ fluid = $FluidEnabled; functionDefaultRegions = @($regionCode) } },
-    @{ resourceConfig = @{ functionDefaultTimeout = $timeoutSec; functionDefaultRegions = @($regionCode) } },
+    @{ resourceConfig = $fullResourceConfig },
+    @{ resourceConfig = @{ fluid = $FluidEnabled; functionDefaultTimeout = $timeoutSec; functionDefaultRegions = @($regions) } },
+    @{ resourceConfig = @{ fluid = $FluidEnabled; functionDefaultTimeout = $timeoutSec; functionDefaultMemoryType = $cpu } },
+    @{ resourceConfig = @{ functionDefaultTimeout = $timeoutSec; functionDefaultRegions = @($regions); functionDefaultMemoryType = $cpu } },
+    @{ resourceConfig = @{ functionDefaultRegions = @($regions); functionDefaultMemoryType = $cpu } },
+    @{ resourceConfig = @{ functionDefaultMemoryType = $cpu } },
     @{ resourceConfig = @{ functionDefaultTimeout = $timeoutSec } },
-    @{ resourceConfig = @{ functionDefaultRegions = @($regionCode) } }
+    @{ resourceConfig = @{ functionDefaultRegions = @($regions) } }
   )
 
   $scopeCandidates = Build-ScopeCandidates -Scope $Scope -Token $token -ProjectRoot $scriptDir
@@ -2073,7 +2850,7 @@ function Apply-ProjectRuntimeSettings([string]$ProjectName, [string]$Scope, [str
       foreach ($payload in $payloads) {
         try {
           $null = Invoke-VercelApiPatch -Path $path -Token $token -Scope $sc -Body $payload
-          Write-Host ("Runtime settings synced by API: fluid={0}, timeout={1}s, region={2}" -f $(if ($FluidEnabled) { "on" } else { "off" }), $timeoutSec, $regionCode) -ForegroundColor Green
+          Write-Host ("Runtime settings synced by API: fluid={0}, timeout={1}s, regions={2}, cpu={3}" -f $(if ($FluidEnabled) { "on" } else { "off" }), $timeoutSec, ($regions -join ","), $cpu) -ForegroundColor Green
           return $true
         } catch {
           $lastErr = Get-ApiErrorText $_
@@ -2090,12 +2867,61 @@ function Apply-ProjectRuntimeSettings([string]$ProjectName, [string]$Scope, [str
   return $false
 }
 
+function Resolve-ProjectApiInfo([string]$ProjectName, [string]$Scope, [string]$Token) {
+  if ([string]::IsNullOrWhiteSpace($ProjectName) -or [string]::IsNullOrWhiteSpace($Token)) { return $null }
+
+  $scopeCandidates = Build-ScopeCandidates -Scope $Scope -Token $Token -ProjectRoot $scriptDir
+  foreach ($sc in $scopeCandidates) {
+    try {
+      $resp = Invoke-VercelApiGet -Path "/v9/projects?limit=100" -Token $Token -Scope $sc
+      if ($null -eq $resp -or $null -eq $resp.projects) { continue }
+      $hit = $resp.projects | Where-Object { [string]$_.name -eq $ProjectName } | Select-Object -First 1
+      if ($null -eq $hit) { continue }
+
+      $projectId = if ($hit.id) { [string]$hit.id } else { "" }
+      $accountId = ""
+      if ($hit.PSObject.Properties.Name -contains "accountId" -and $hit.accountId) {
+        $accountId = [string]$hit.accountId
+      }
+      if ([string]::IsNullOrWhiteSpace($accountId)) {
+        try {
+          $userResp = Invoke-VercelApiGet -Path "/v2/user" -Token $Token -Scope ""
+          if ($null -ne $userResp -and $null -ne $userResp.user -and $userResp.user.id) {
+            $accountId = [string]$userResp.user.id
+          }
+        } catch {}
+      }
+
+      $ownerScope = ""
+      if ($accountId.StartsWith("team_")) {
+        $slug = Try-ResolveTeamSlugFromTeamId -TeamId $accountId -Token $Token
+        $ownerScope = if (-not [string]::IsNullOrWhiteSpace($slug)) { $slug } else { $accountId }
+      } elseif (-not [string]::IsNullOrWhiteSpace($sc) -and -not $sc.StartsWith("team_")) {
+        $ownerScope = Normalize-ScopeForCli -Scope $sc
+      }
+
+      return [PSCustomObject]@{
+        Name = $ProjectName
+        Id = $projectId
+        AccountId = $accountId
+        Scope = $ownerScope
+      }
+    } catch {}
+  }
+
+  try {
+    $all = Get-ProjectsFromVercelApi -Scope $Scope -TokenStorePath $tokenStorePath
+    $match = $all | Where-Object { [string]$_.Name -eq $ProjectName } | Select-Object -First 1
+    if ($null -ne $match) { return $match }
+  } catch {}
+
+  return $null
+}
+
 function Resolve-ProjectApiId([string]$ProjectName, [string]$Scope, [string]$Token) {
-  $resp = Invoke-VercelApiGet -Path "/v9/projects?limit=100" -Token $Token -Scope $Scope
-  if ($null -eq $resp -or $null -eq $resp.projects) { return "" }
-  $hit = $resp.projects | Where-Object { $_.name -eq $ProjectName } | Select-Object -First 1
-  if ($null -eq $hit) { return "" }
-  return [string]$hit.id
+  $info = Resolve-ProjectApiInfo -ProjectName $ProjectName -Scope $Scope -Token $Token
+  if ($null -eq $info) { return "" }
+  return [string]$info.Id
 }
 
 function Get-LatestDeploymentApi([string]$ProjectId, [string]$Scope, [string]$Token) {
@@ -2116,15 +2942,18 @@ function Get-DeploymentEventsApi([string]$DeploymentId, [int]$Limit, [string]$Sc
   return @()
 }
 
-function Get-RecentLogsCli([string]$ProjectName, [string]$Scope, [int]$Minutes) {
+function Get-RecentLogsCli([string]$ProjectName, [string]$Scope, [int]$Minutes, [string]$TokenStorePath = "") {
   $Scope = Normalize-ScopeForCli -Scope $Scope
   $args = @("logs", $ProjectName, "--since", "${Minutes}m", "--limit", "200", "--json", "--no-color")
   if (-not [string]::IsNullOrWhiteSpace($Scope)) { $args += @("--scope", $Scope) }
+  $cliToken = Get-VercelApiToken -TokenStorePath $TokenStorePath
+  if (-not [string]::IsNullOrWhiteSpace($cliToken)) { $args += @("--token", $cliToken) }
   $res = Invoke-NativeSafe -FilePath $VercelExe -Arguments $args
   if ($res.ExitCode -ne 0 -or (($res.Output | Out-String) -match "(?i)does not support filtering|unknown or unexpected option|--json")) {
     # Fallback for CLI variants that don't support JSON/flag combinations.
     $fallbackArgs = @("logs", $ProjectName, "--since", "${Minutes}m", "--limit", "200", "--no-color")
     if (-not [string]::IsNullOrWhiteSpace($Scope)) { $fallbackArgs += @("--scope", $Scope) }
+    if (-not [string]::IsNullOrWhiteSpace($cliToken)) { $fallbackArgs += @("--token", $cliToken) }
     $res = Invoke-NativeSafe -FilePath $VercelExe -Arguments $fallbackArgs
   }
   if ($res.ExitCode -ne 0) {
@@ -2206,6 +3035,37 @@ function Remove-SelectedProject([string]$ProjectName, [string]$Scope, [string]$T
   throw ("Project delete failed. {0}" -f $lastErr)
 }
 
+function Run-DeleteProjectFlow([string]$Scope, [string]$TokenStorePath) {
+  Write-Step "Delete Project"
+  Write-Host "Choose the project you want to delete from your Vercel account." -ForegroundColor Yellow
+  Write-Host "Nothing is deleted until you type DELETE and then type the exact project name." -ForegroundColor DarkYellow
+
+  $selected = Select-ProjectFromList -Scope $Scope -TokenStorePath $TokenStorePath
+  if ($null -eq $selected) {
+    Write-Host "Canceled. Returning to main menu." -ForegroundColor DarkYellow
+    return @{ Deleted = $false }
+  }
+
+  $projectName = [string]$selected.Name
+  $projectScope = $Scope
+  if ($selected.PSObject.Properties.Name -contains "Scope" -and -not [string]::IsNullOrWhiteSpace([string]$selected.Scope)) {
+    $projectScope = Normalize-ScopeForCli -Scope ([string]$selected.Scope)
+  }
+
+  $deleted = Remove-SelectedProject -ProjectName $projectName -Scope $projectScope -TokenStorePath $TokenStorePath
+  return @{
+    Deleted = [bool]$deleted
+    ProjectName = $projectName
+    Scope = $projectScope
+  }
+}
+
+function Select-ProjectOrNewAfterDelete([string]$Scope, [string]$TokenStorePath) {
+  Write-Step "Choose next project"
+  Write-Host "Project list refreshed after deletion." -ForegroundColor Cyan
+  return (Select-ProjectOrNewForFirstRun -Scope $Scope -TokenStorePath $TokenStorePath)
+}
+
 function Convert-JsonLineSafe([string]$Line) {
   try {
     return ($Line | ConvertFrom-Json -ErrorAction Stop)
@@ -2272,14 +3132,8 @@ function Get-LogStatusCode($obj) {
 }
 
 function Translate-LogHint([string]$Text) {
-  if ($Text -match "(?i)upstream_timeout|Task timed out after|timeout") { return "timeout to upstream/function" }
-  if ($Text -match "(?i)scope does not exist|invalid scope") { return "invalid scope/team slug" }
-  if ($Text -match "(?i)MAX_INFLIGHT|service unavailable|503") { return "concurrency pressure (503)" }
-  if ($Text -match "(?i)ENOTFOUND|EAI_AGAIN|dns|lookup") { return "dns/resolve issue" }
-  if ($Text -match "(?i)ECONNRESET|socket hang up") { return "connection reset / upstream network issue" }
-  if ($Text -match "(?i)\b404\b") { return "path mismatch (404)" }
-  if ($Text -match "(?i)\b403\b") { return "auth/key mismatch (403)" }
-  return "needs deeper inspection"
+  $diag = Get-LogDiagnosis -Status "" -Text $Text
+  return [string]$diag.Meaning
 }
 
 function Collapse-Whitespace([string]$Text) {
@@ -2306,15 +3160,162 @@ function Parse-LogFieldsFromText([string]$Text) {
   }
 }
 
-function Get-LogColor([string]$Status, [string]$Text) {
-  if (-not [string]::IsNullOrWhiteSpace($Status)) {
-    if ($Status -match "^[45]") { return "Red" }
-    if ($Status -match "^3") { return "Yellow" }
-    if ($Status -match "^2") { return "Green" }
+function Get-LogDiagnosis([string]$Status, [string]$Text) {
+  $t = [string]$Text
+  $st = [string]$Status
+  if ([string]::IsNullOrWhiteSpace($st) -and $t -match '\b([1-5][0-9]{2})\b') { $st = $Matches[1] }
+
+  if ($t -match "(?i)not authorized|forbidden|invalid token|authentication") {
+    return [pscustomobject]@{
+      Tag = "SETUP"
+      Color = "Red"
+      Weight = 10
+      Meaning = "Vercel did not accept the login/token for this project."
+      Action = "Use token auth again, then make sure the selected scope/team is correct."
+    }
   }
-  if ($Text -match "(?i)(error|fatal|timeout|upstream_|unhandled|503|504|502)") { return "Red" }
-  if ($Text -match "(?i)(warn|warning|429|403|404)") { return "Yellow" }
-  return "Gray"
+  if ($t -match "(?i)scope does not exist|invalid scope|team slug") {
+    return [pscustomobject]@{
+      Tag = "SETUP"
+      Color = "Red"
+      Weight = 11
+      Meaning = "The selected Vercel team/scope is wrong."
+      Action = "Select the project again from the token project list, or enter the correct team slug."
+    }
+  }
+  if ($t -match "(?i)upstream_timeout|Task timed out after|timeout") {
+    return [pscustomobject]@{
+      Tag = "PROBLEM"
+      Color = "Red"
+      Weight = 20
+      Meaning = "A request waited too long and timed out."
+      Action = "Check the target server and port. If traffic is heavy, raise timeout/capacity or reduce client load."
+    }
+  }
+  if ($t -match "(?i)ENOTFOUND|EAI_AGAIN|dns|lookup") {
+    return [pscustomobject]@{
+      Tag = "PROBLEM"
+      Color = "Red"
+      Weight = 21
+      Meaning = "Vercel could not resolve the target domain."
+      Action = "Check TARGET_DOMAIN spelling and DNS. If needed set UPSTREAM_DNS_ORDER=ipv4first."
+    }
+  }
+  if ($t -match "(?i)ECONNRESET|socket hang up|ECONNREFUSED") {
+    return [pscustomobject]@{
+      Tag = "PROBLEM"
+      Color = "Red"
+      Weight = 22
+      Meaning = "The target server closed or refused the connection."
+      Action = "Check that the foreign server service is running and the target port is open."
+    }
+  }
+
+  switch -Regex ($st) {
+    "^2" {
+      return [pscustomobject]@{
+        Tag = "OK"
+        Color = "Green"
+        Weight = 90
+        Meaning = "Request reached the relay and completed successfully."
+        Action = "No action needed."
+      }
+    }
+    "^3" {
+      return [pscustomobject]@{
+        Tag = "CHECK"
+        Color = "Yellow"
+        Weight = 60
+        Meaning = "The request was redirected."
+        Action = "If the client fails, check TARGET_DOMAIN protocol, trailing slash, and redirects on the target server."
+      }
+    }
+    "^400$" {
+      return [pscustomobject]@{
+        Tag = "CHECK"
+        Color = "Yellow"
+        Weight = 55
+        Meaning = "The path answered, but the request format was not accepted."
+        Action = "This can be normal for quick tests. If real clients fail, check client protocol/path settings."
+      }
+    }
+    "^401$|^403$" {
+      return [pscustomobject]@{
+        Tag = "PROBLEM"
+        Color = "Red"
+        Weight = 25
+        Meaning = "The request was blocked by authorization."
+        Action = "Check x-relay-key and make sure the client sends the same value configured during deploy."
+      }
+    }
+    "^404$" {
+      return [pscustomobject]@{
+        Tag = "PROBLEM"
+        Color = "Red"
+        Weight = 24
+        Meaning = "The requested path was not found."
+        Action = "Check RELAY_PATH and the client path. They must match exactly and start with /, for example /api."
+      }
+    }
+    "^405$" {
+      return [pscustomobject]@{
+        Tag = "OK"
+        Color = "Green"
+        Weight = 88
+        Meaning = "The relay rejected an unsupported request method."
+        Action = "No action needed unless your real client is using this method."
+      }
+    }
+    "^429$" {
+      return [pscustomobject]@{
+        Tag = "PROBLEM"
+        Color = "Red"
+        Weight = 23
+        Meaning = "Too many requests were sent in a short time."
+        Action = "Reduce client concurrency or use a higher-capacity Node profile."
+      }
+    }
+    "^5" {
+      return [pscustomobject]@{
+        Tag = "PROBLEM"
+        Color = "Red"
+        Weight = 20
+        Meaning = "The target server or Vercel function returned a server error."
+        Action = "Check target server health, port, path, and current load. Then rerun health checks."
+      }
+    }
+  }
+
+  if ($t -match "(?i)error|fatal|unhandled|failed") {
+    return [pscustomobject]@{
+      Tag = "PROBLEM"
+      Color = "Red"
+      Weight = 30
+      Meaning = "An error was reported, but no exact HTTP status was found."
+      Action = "Read the detail line below, then check target domain, relay path, and ENV values."
+    }
+  }
+  if ($t -match "(?i)warn|warning") {
+    return [pscustomobject]@{
+      Tag = "CHECK"
+      Color = "Yellow"
+      Weight = 65
+      Meaning = "A warning was reported."
+      Action = "Check only if users are seeing connection issues."
+    }
+  }
+  return [pscustomobject]@{
+    Tag = "INFO"
+    Color = "Gray"
+    Weight = 95
+    Meaning = "Informational log entry."
+    Action = "No action needed."
+  }
+}
+
+function Get-LogColor([string]$Status, [string]$Text) {
+  $diag = Get-LogDiagnosis -Status $Status -Text $Text
+  return [string]$diag.Color
 }
 
 function Write-CompactLogLine($Item) {
@@ -2339,13 +3340,98 @@ function Write-CompactLogLine($Item) {
   if ([string]::IsNullOrWhiteSpace($status)) { $status = "-" }
   if ([string]::IsNullOrWhiteSpace($duration)) { $duration = "-" }
 
-  $line = "[{0}] st={1} m={2} d={3}ms path={4} | {5} | {6}" -f $time, $status, $method, $duration, $path, $hint, $compact
-  $color = Get-LogColor -Status $status -Text $text
+  $diag = Get-LogDiagnosis -Status $status -Text $text
+  $durationText = if ($duration -eq "-") { "time unknown" } else { "$duration ms" }
+  $line = "[{0}] {1} | Status {2} | {3} {4} | {5} | Next: {6}" -f $time, $diag.Tag, $status, $method, $path, $diag.Meaning, $diag.Action
+  if ($line.Length -gt 220) { $line = $line.Substring(0, 220) + "..." }
+  $color = [string]$diag.Color
   Write-Host $line -ForegroundColor $color
+  if ($diag.Tag -ne "OK" -and $diag.Tag -ne "INFO" -and -not [string]::IsNullOrWhiteSpace($compact)) {
+    if ($compact.Length -gt 130) { $compact = $compact.Substring(0, 130) + "..." }
+    Write-Host ("    Detail: {0} | Duration: {1}" -f $compact, $durationText) -ForegroundColor DarkGray
+  }
+}
+
+function Write-LogSummary($Items) {
+  $counts = @{
+    OK = 0
+    CHECK = 0
+    PROBLEM = 0
+    SETUP = 0
+    INFO = 0
+  }
+  $statusCounts = @{}
+  foreach ($it in @($Items)) {
+    $text = if ($null -ne $it.text) { [string]$it.text } else { "" }
+    $status = if ($null -ne $it.status) { [string]$it.status } else { "" }
+    if ([string]::IsNullOrWhiteSpace($status)) {
+      $parsed = Parse-LogFieldsFromText -Text $text
+      $status = $parsed.Status
+    }
+    $diag = Get-LogDiagnosis -Status $status -Text $text
+    $tag = [string]$diag.Tag
+    if (-not $counts.ContainsKey($tag)) { $counts[$tag] = 0 }
+    $counts[$tag]++
+    if (-not [string]::IsNullOrWhiteSpace($status) -and $status -ne "-") {
+      if (-not $statusCounts.ContainsKey($status)) { $statusCounts[$status] = 0 }
+      $statusCounts[$status]++
+    }
+  }
+
+  Write-Host ""
+  Write-Host "Readable summary:" -ForegroundColor Cyan
+  Write-Host (" - OK: {0} successful/normal events" -f $counts.OK) -ForegroundColor Green
+  Write-Host (" - Check: {0} events that may be normal but should be reviewed if users have issues" -f $counts.CHECK) -ForegroundColor Yellow
+  Write-Host (" - Problem: {0} real error events" -f $counts.PROBLEM) -ForegroundColor Red
+  Write-Host (" - Setup: {0} token/scope/project access issues" -f $counts.SETUP) -ForegroundColor Red
+  if ($statusCounts.Count -gt 0) {
+    $pairs = @()
+    $statusCounts.GetEnumerator() | Sort-Object Name | ForEach-Object { $pairs += ("{0}={1}" -f $_.Name, $_.Value) }
+    Write-Host (" - HTTP status counts: {0}" -f ($pairs -join ", ")) -ForegroundColor DarkGray
+  }
+}
+
+function Write-LogNextSteps($Items) {
+  $texts = @()
+  foreach ($it in @($Items)) {
+    if ($null -ne $it.text) { $texts += [string]$it.text }
+  }
+  $joined = ($texts -join "`n")
+  $actions = @()
+  if ($joined -match "(?i)not authorized|invalid token|scope does not exist|invalid scope|team slug") {
+    $actions += "Login/scope issue: use token auth again, then select the project from the token project list."
+  }
+  if ($joined -match "(?i)\b404\b") {
+    $actions += "Path issue: check RELAY_PATH and the client path. They must match exactly, for example /api."
+  }
+  if ($joined -match "(?i)\b401\b|\b403\b") {
+    $actions += "Key issue: check x-relay-key. If a password was set, the client must send the same header."
+  }
+  if ($joined -match "(?i)\b429\b|\b503\b|MAX_INFLIGHT|service unavailable") {
+    $actions += "Traffic pressure: reduce client concurrency or switch to a higher-capacity Node profile."
+  }
+  if ($joined -match "(?i)\b500\b|\b502\b|\b504\b|timeout|upstream_timeout|Task timed out after") {
+    $actions += "Server/timeout issue: check target domain, port, foreign server health, and timeout/capacity values."
+  }
+  if ($joined -match "(?i)ENOTFOUND|EAI_AGAIN|dns|lookup") {
+    $actions += "DNS issue: check TARGET_DOMAIN spelling/DNS, or try UPSTREAM_DNS_ORDER=ipv4first."
+  }
+  if ($actions.Count -eq 0) {
+    $actions += "No obvious failure found. If the client still fails, generate traffic and run logs again with a larger window, for example 30 minutes."
+  }
+  Write-Host ""
+  Write-Host "What to do next:" -ForegroundColor Cyan
+  foreach ($a in @($actions | Select-Object -Unique)) {
+    Write-Host (" - {0}" -f $a) -ForegroundColor DarkYellow
+  }
 }
 
 function Show-ProfessionalLogs([string]$ProjectName, [string]$Scope, [int]$Minutes, [string]$TokenStorePath) {
   Write-Step ("Recent logs (last {0} minutes)" -f $Minutes)
+  Write-Host ("Project: {0}" -f $ProjectName) -ForegroundColor Cyan
+  if (-not [string]::IsNullOrWhiteSpace($Scope)) {
+    Write-Host ("Scope:   {0}" -f $Scope) -ForegroundColor DarkGray
+  }
   $errors = @()
   $allLines = @()
   $anyActivity = $false
@@ -2380,7 +3466,8 @@ function Show-ProfessionalLogs([string]$ProjectName, [string]$Scope, [int]$Minut
               hint = Translate-LogHint -Text $txt
             }
             $allLines += $item
-            if ($txt -match "(?i)(error|fatal|timeout|503|504|502|upstream_|unhandled)") {
+            $diag = Get-LogDiagnosis -Status $item.status -Text $txt
+            if ($diag.Tag -eq "PROBLEM" -or $diag.Tag -eq "SETUP") {
               $errors += $item
             }
           }
@@ -2392,7 +3479,7 @@ function Show-ProfessionalLogs([string]$ProjectName, [string]$Scope, [int]$Minut
   }
 
   if ($allLines.Count -eq 0) {
-    $cli = Get-RecentLogsCli -ProjectName $ProjectName -Scope $Scope -Minutes $Minutes
+    $cli = Get-RecentLogsCli -ProjectName $ProjectName -Scope $Scope -Minutes $Minutes -TokenStorePath $TokenStorePath
     if ($cli.Ok) {
       foreach ($line in $cli.Lines) {
         $obj = Convert-JsonLineSafe -Line $line
@@ -2413,7 +3500,8 @@ function Show-ProfessionalLogs([string]$ProjectName, [string]$Scope, [int]$Minut
             hint = Translate-LogHint -Text $t
           }
           $allLines += $item
-          if ($t -match "(?i)(error|fatal|timeout|503|504|502|upstream_|unhandled)") {
+          $diag = Get-LogDiagnosis -Status $item.status -Text $t
+          if ($diag.Tag -eq "PROBLEM" -or $diag.Tag -eq "SETUP") {
             $errors += $item
           }
           continue
@@ -2423,19 +3511,26 @@ function Show-ProfessionalLogs([string]$ProjectName, [string]$Scope, [int]$Minut
         if ($null -ne $parsedTextLine) {
           $anyActivity = $true
           $allLines += $parsedTextLine
-          if ([string]$parsedTextLine.text -match "(?i)(error|fatal|timeout|503|504|502|upstream_|unhandled)") {
+          $diag = Get-LogDiagnosis -Status $parsedTextLine.status -Text $parsedTextLine.text
+          if ($diag.Tag -eq "PROBLEM" -or $diag.Tag -eq "SETUP") {
             $errors += $parsedTextLine
           }
         }
       }
     } elseif (-not [string]::IsNullOrWhiteSpace($cli.ErrorText)) {
-      Write-Host "CLI logs not available in this environment. Use option 12 (Live logs) while reproducing issue." -ForegroundColor DarkYellow
+      Write-Host "Log history is not available from Vercel CLI in this environment." -ForegroundColor DarkYellow
+      Write-Host "Use Live logs while reproducing the issue, or check token/scope/project access." -ForegroundColor DarkYellow
     }
   }
 
   if ($allLines.Count -gt 0) {
-    Write-Host "Recent log lines (compact):" -ForegroundColor Cyan
-    $allLines | Select-Object -First 150 | ForEach-Object { Write-CompactLogLine -Item $_ }
+    Write-Host ("Found {0} readable log events." -f $allLines.Count) -ForegroundColor Green
+    Write-LogSummary -Items $allLines
+    Write-Host ""
+    Write-Host "Important events first:" -ForegroundColor Cyan
+    $displayLines = $allLines | Sort-Object @{ Expression = { (Get-LogDiagnosis -Status ([string]$_.status) -Text ([string]$_.text)).Weight }; Ascending = $true } | Select-Object -First 150
+    $displayLines | ForEach-Object { Write-CompactLogLine -Item $_ }
+    Write-LogNextSteps -Items $allLines
   } elseif ($anyActivity) {
     Write-Host "Traffic exists but readable log text was not returned in this window." -ForegroundColor DarkYellow
   } else {
@@ -2443,29 +3538,34 @@ function Show-ProfessionalLogs([string]$ProjectName, [string]$Scope, [int]$Minut
     Write-Host "Tip: reproduce issue, then run option 7/12 again." -ForegroundColor DarkYellow
   }
 
-  if ($allLines.Count -gt 0) {
-    $statusCounts = @{}
-    foreach ($it in $allLines) {
-      $st = [string]$it.status
-      if ([string]::IsNullOrWhiteSpace($st)) { continue }
-      if (-not $statusCounts.ContainsKey($st)) { $statusCounts[$st] = 0 }
-      $statusCounts[$st]++
-    }
-    if ($statusCounts.Count -gt 0) {
-      Write-Host "Status summary:" -ForegroundColor Cyan
-      $statusCounts.GetEnumerator() | Sort-Object Name | ForEach-Object {
-        Write-Host (" - {0}: {1}" -f $_.Name, $_.Value)
-      }
-    }
-  }
-
   return $errors
+}
+
+function Get-FriendlyLogStreamError([string]$Text) {
+  $t = [string]$Text
+  if ($t -match "(?i)not authorized|forbidden|invalid token|authentication") {
+    return "Vercel rejected the token/login. Run token auth again and select the correct project."
+  }
+  if ($t -match "(?i)scope does not exist|invalid scope|team slug") {
+    return "The Vercel scope/team is wrong. Select the project again from the token project list."
+  }
+  if ($t -match "(?i)not found|could not find|unknown project") {
+    return "Vercel could not find this project in the selected account/scope."
+  }
+  if ($t -match "(?i)rate limit|too many requests") {
+    return "Vercel is rate-limiting log requests. Wait a little and retry."
+  }
+  return "Live log stream stopped. Check token, scope, and selected project, then retry."
 }
 
 function Start-LiveLogsTranslated([string]$ProjectName, [string]$Scope, [string]$TokenStorePath) {
   Write-Step "Live logs"
-  Write-Host "Compact mode: one-line summary per log entry" -ForegroundColor Cyan
-  Write-Host "Tip: if nothing appears, generate traffic first (client ping/test)." -ForegroundColor DarkYellow
+  Write-Host ("Project: {0}" -f $ProjectName) -ForegroundColor Cyan
+  if (-not [string]::IsNullOrWhiteSpace($Scope)) {
+    Write-Host ("Scope:   {0}" -f $Scope) -ForegroundColor DarkGray
+  }
+  Write-Host "Each new event is translated into: status, meaning, and the next action." -ForegroundColor Cyan
+  Write-Host "If nothing appears, open your client and generate one connection attempt." -ForegroundColor DarkYellow
   Write-Host "Press Q to return to main menu." -ForegroundColor DarkYellow
   $Scope = Normalize-ScopeForCli -Scope $Scope
   $args = @("logs", $ProjectName, "--follow", "--no-color")
@@ -2563,7 +3663,8 @@ function Start-LiveLogsTranslated([string]$ProjectName, [string]$Scope, [string]
           if ($null -eq $itemText) {
             if ($line -match "(?i)\berror\b|\bnot authorized\b|\bforbidden\b|\binvalid\b|\bfailed\b") {
               [void]$rawErr.Add($line)
-              Write-Host ("[live-error] {0}" -f $line) -ForegroundColor Red
+              Write-Host ("Live log problem: {0}" -f (Get-FriendlyLogStreamError -Text $line)) -ForegroundColor Red
+              Write-Host ("    Detail: {0}" -f (Collapse-Whitespace -Text $line)) -ForegroundColor DarkGray
             }
             continue
           }
@@ -2577,15 +3678,15 @@ function Start-LiveLogsTranslated([string]$ProjectName, [string]$Scope, [string]
           try { $em = $_.Exception.Message } catch { $em = "unknown parse error" }
           if (-not [string]::IsNullOrWhiteSpace($em)) {
             [void]$rawErr.Add($em)
-            Write-Host ("[live-parse-error] {0}" -f $em) -ForegroundColor DarkYellow
+            Write-Host ("Live log notice: one raw line could not be simplified. {0}" -f $em) -ForegroundColor DarkYellow
           }
           continue
         }
       }
 
       $now = Get-Date
-      if ($printed -eq 0 -and (($now - $lastHeartbeat).TotalSeconds -ge 8)) {
-        Write-Host "[live] waiting for new logs..." -ForegroundColor DarkGray
+      if ($printed -eq 0 -and (($now - $lastHeartbeat).TotalSeconds -ge 12)) {
+        Write-Host "Waiting for traffic... start the client or run a quick health check. Press Q to go back." -ForegroundColor DarkGray
         $lastHeartbeat = $now
       }
       if ($printed -gt 0) {
@@ -2594,15 +3695,15 @@ function Start-LiveLogsTranslated([string]$ProjectName, [string]$Scope, [string]
 
       if ($proc.HasExited -and $queue.Count -eq 0) {
         if ($proc.ExitCode -eq 0) {
-          Write-Host ("[live] stream ended (exit={0}). press Enter to continue." -f $proc.ExitCode) -ForegroundColor DarkYellow
+          Write-Host ("Live log stream ended normally (exit={0}). Press Enter to continue." -f $proc.ExitCode) -ForegroundColor DarkYellow
         } else {
-          Write-Host ("[live] stream ended with error (exit={0})." -f $proc.ExitCode) -ForegroundColor Red
+          Write-Host ("Live log stream ended with an error (exit={0})." -f $proc.ExitCode) -ForegroundColor Red
           if ($rawErr.Count -gt 0) {
-            Write-Host ("hint: {0}" -f [string]$rawErr[$rawErr.Count - 1]) -ForegroundColor DarkYellow
+            Write-Host ("Reason: {0}" -f (Get-FriendlyLogStreamError -Text ([string]$rawErr[$rawErr.Count - 1]))) -ForegroundColor DarkYellow
           } else {
-            Write-Host "hint: check token/scope/project access, then retry." -ForegroundColor DarkYellow
+            Write-Host "Reason: no readable error was returned. Check token/scope/project access, then retry." -ForegroundColor DarkYellow
           }
-          Write-Host "press Enter to continue." -ForegroundColor DarkYellow
+          Write-Host "Press Enter to continue." -ForegroundColor DarkYellow
         }
         break
       }
@@ -2611,8 +3712,8 @@ function Start-LiveLogsTranslated([string]$ProjectName, [string]$Scope, [string]
   } catch {
     $m = $_.Exception.Message
     if ([string]::IsNullOrWhiteSpace($m)) { $m = "unknown runtime error" }
-    Write-Host ("[live] stream runtime error: {0}" -f $m) -ForegroundColor Red
-    Write-Host "hint: retry option 12, and ensure token/scope/project are valid." -ForegroundColor DarkYellow
+    Write-Host ("Live log stream runtime error: {0}" -f $m) -ForegroundColor Red
+    Write-Host "Retry live logs after checking token, scope, and selected project." -ForegroundColor DarkYellow
   } finally {
     try {
       if (-not $proc.HasExited) { $proc.Kill() }
@@ -2657,7 +3758,7 @@ function Get-IncidentAnalysis([string[]]$LogTexts) {
   if ($issues.Count -eq 0) {
     $issues += "No clear failure signature found in sampled logs."
     $actions += "If you still have issue, reproduce traffic first, then run option 7 with a larger minutes window (e.g. 30)."
-    $actions += "Status 400 on probe path is usually normal (probe payload is not full client protocol)."
+    $actions += "Status 400 in a quick check is usually OK because this test is not a real client tunnel request."
   }
 
   return @{
@@ -2691,68 +3792,76 @@ function Get-HttpStatusCodeSafe([string]$Url, [string]$Method = "GET", [int]$Tim
   }
 }
 
-function Run-HealthAndSmokeChecks([string]$ProjectName, [string]$RelayPath) {
+function Run-HealthAndSmokeChecks([string]$ProjectName, [string]$RelayPath, [string]$Runtime = "node") {
   $domain = "https://$ProjectName.vercel.app"
   $rp = if ($RelayPath.StartsWith("/")) { $RelayPath } else { "/$RelayPath" }
+  $isRewrite = ([string]$Runtime).ToLowerInvariant() -eq "rewrite"
 
-  Write-Step "Health Check"
+  Write-Step "Basic website check"
   try {
     $rootSw = [System.Diagnostics.Stopwatch]::StartNew()
     $rootStatus = Get-HttpStatusCodeSafe -Url "$domain/" -Method "GET" -TimeoutSec 20
     $rootSw.Stop()
     if ($rootStatus -gt 0) {
-      Write-Host ("Root: {0} ({1} ms)" -f $rootStatus, $rootSw.ElapsedMilliseconds) -ForegroundColor Green
+      Write-Host ("Main site is reachable. Status={0}, time={1} ms" -f $rootStatus, $rootSw.ElapsedMilliseconds) -ForegroundColor Green
     } else {
-      Write-Host "Root: no response" -ForegroundColor Yellow
+      Write-Host "Main site did not answer. Check Vercel deployment/domain first." -ForegroundColor Yellow
     }
   } catch {
-    Write-Host ("Root failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
+    Write-Host ("Main site check failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
   }
   try {
     $apiSw = [System.Diagnostics.Stopwatch]::StartNew()
     $apiStatus = Get-HttpStatusCodeSafe -Url "$domain$rp/test" -Method "GET" -TimeoutSec 20
     $apiSw.Stop()
     if ($apiStatus -gt 0) {
-      Write-Host ("API: {0} ({1} ms)" -f $apiStatus, $apiSw.ElapsedMilliseconds) -ForegroundColor Green
+      Write-Host ("Relay path answered. Status={0}, time={1} ms" -f $apiStatus, $apiSw.ElapsedMilliseconds) -ForegroundColor Green
       if ($apiStatus -eq 400) {
-        Write-Host "Note: API=400 in this check is usually normal. This probe is raw and not a full client tunnel handshake." -ForegroundColor DarkYellow
+        Write-Host "This is usually OK: the quick test is not a real client tunnel request." -ForegroundColor DarkYellow
       }
     } else {
-      Write-Host "API: no response" -ForegroundColor Yellow
+      Write-Host "Relay path did not answer. Check the path you entered, for example /api." -ForegroundColor Yellow
     }
   } catch {
-    Write-Host ("API failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
+    Write-Host ("Relay path check failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
   }
 
-  Write-Step "Smoke Tests"
+  Write-Step "Simple safety checks"
+  if ($isRewrite) {
+    Write-Host "Rewrite mode detected. These deeper Node checks are skipped." -ForegroundColor Cyan
+    Write-Host "If you see 404 here in rewrite mode, it can simply mean your destination server returns 404 to browser-style test requests." -ForegroundColor DarkGray
+    return
+  }
+
   $st1 = Get-HttpStatusCodeSafe -Url "$domain/not-a-relay-path" -Method "GET" -TimeoutSec 20
   if ($st1 -eq 404) {
-    Write-Host ("[PASS] Wrong path check | expected 404 | got {0}" -f $st1) -ForegroundColor Green
+    Write-Host ("[OK] Random wrong address is blocked. Status={0}" -f $st1) -ForegroundColor Green
   } else {
-    Write-Host ("[WARN] Wrong path check | expected 404 | got {0}" -f $st1) -ForegroundColor Yellow
+    Write-Host ("[CHECK] Random wrong address returned Status={0}. Usually not critical, but check routing if the tunnel fails." -f $st1) -ForegroundColor Yellow
   }
 
   $st2 = Get-HttpStatusCodeSafe -Url "$domain$rp/test" -Method "PUT" -TimeoutSec 20
   if ($st2 -eq 405) {
-    Write-Host ("[PASS] Wrong method check | expected 405 | got {0}" -f $st2) -ForegroundColor Green
+    Write-Host ("[OK] Invalid request type is rejected. Status={0}" -f $st2) -ForegroundColor Green
   } else {
-    Write-Host ("[WARN] Wrong method check | expected 405 | got {0}" -f $st2) -ForegroundColor Yellow
+    Write-Host ("[CHECK] Invalid request type returned Status={0}. This can be OK if your destination server handles it differently." -f $st2) -ForegroundColor Yellow
   }
 
   $st3 = Get-HttpStatusCodeSafe -Url "$domain$rp/$([guid]::NewGuid().ToString())/0" -Method "GET" -TimeoutSec 20
   if ($st3 -ne 404 -and $st3 -gt 0) {
-    Write-Host ("[PASS] Valid relay path check | expected non-404 | got {0}" -f $st3) -ForegroundColor Green
+    Write-Host ("[OK] Your relay path was found. Status={0}" -f $st3) -ForegroundColor Green
   } else {
-    Write-Host ("[FAIL] Valid relay path check | expected non-404 | got {0}" -f $st3) -ForegroundColor Red
+    Write-Host ("[PROBLEM] Your relay path was not found. Status={0}" -f $st3) -ForegroundColor Red
   }
   if ($st3 -eq 400) {
-    Write-Host "Explanation: path is reachable. HTTP 400 here usually means probe payload is not a real client protocol frame." -ForegroundColor DarkYellow
+    Write-Host "What it means: the path exists. This quick test is not a real client request, so Status=400 is usually fine." -ForegroundColor DarkYellow
   } elseif ($st3 -eq 404) {
-    Write-Host "Action: likely RELAY_PATH mismatch. Open your foreign server inbound and copy exact Path (with leading '/')." -ForegroundColor Red
+    Write-Host "What to do: the path is probably wrong. Open your foreign server inbound and copy the exact Path here, including the first slash, like /api." -ForegroundColor Red
   } elseif ($st3 -ge 500) {
-    Write-Host "Action: 5xx means upstream/runtime pressure. Reduce load or increase timeout/capacity." -ForegroundColor Red
+    Write-Host "What it means: Vercel reached the path, but the destination server or function returned a server error." -ForegroundColor Yellow
+    Write-Host "What to do: check that the target domain is online, the port is open, and the inbound service is running. If traffic is heavy, use a higher Node profile or increase timeout/capacity." -ForegroundColor Yellow
   } elseif ($st3 -ge 200 -and $st3 -lt 400) {
-    Write-Host "Explanation: relay path answered normally for this probe." -ForegroundColor Green
+    Write-Host "Everything looks reachable from this quick check." -ForegroundColor Green
   }
 }
 
@@ -2875,15 +3984,6 @@ function Get-EnvMapFromApi([string]$ProjectName, [string]$Scope, [string]$TokenS
 function Run-EnvDriftDetector([string]$ProjectName, [string]$Scope, [string]$TokenStorePath) {
   Write-Step "ENV drift detector"
   $profiles = @{
-    eco = @{
-      "UPSTREAM_TIMEOUT_MS" = "50000"
-      "MAX_INFLIGHT" = "128"
-      "MAX_UP_BPS" = "2621440"
-      "MAX_DOWN_BPS" = "2621440"
-      "SUCCESS_LOG_SAMPLE_RATE" = "0"
-      "SUCCESS_LOG_MIN_DURATION_MS" = "3000"
-      "ERROR_LOG_MIN_INTERVAL_MS" = "5000"
-    }
     balanced = @{
       "UPSTREAM_TIMEOUT_MS" = "60000"
       "MAX_INFLIGHT" = "256"
@@ -2893,7 +3993,7 @@ function Run-EnvDriftDetector([string]$ProjectName, [string]$Scope, [string]$Tok
       "SUCCESS_LOG_MIN_DURATION_MS" = "3000"
       "ERROR_LOG_MIN_INTERVAL_MS" = "5000"
     }
-    performance = @{
+    max_connection = @{
       "UPSTREAM_TIMEOUT_MS" = "60000"
       "MAX_INFLIGHT" = "512"
       "MAX_UP_BPS" = "10485760"
@@ -2904,9 +4004,13 @@ function Run-EnvDriftDetector([string]$ProjectName, [string]$Scope, [string]$Tok
     }
   }
 
-  Write-Host "Profiles: eco | balanced | performance" -ForegroundColor Cyan
+  Write-Host "Profiles: balanced | max_connection | 0 = Back" -ForegroundColor Cyan
   Write-Host "Profile here means: expected target values for this project's behavior." -ForegroundColor DarkGray
   $p = Read-Default "Select baseline profile" "balanced"
+  if ($p -eq "0") {
+    Write-Host "Canceled. Returning to main menu." -ForegroundColor DarkYellow
+    return
+  }
   if (-not $profiles.ContainsKey($p)) { $p = "balanced" }
   $baseline = $profiles[$p]
 
@@ -2944,15 +4048,19 @@ function Run-EnvDriftDetector([string]$ProjectName, [string]$Scope, [string]$Tok
   }
 }
 
-function Run-ProfileBenchmark([string]$ProjectName, [string]$RelayPath, [string]$Scope, [string]$TokenStorePath) {
+function Run-ProfileBenchmark([string]$ProjectName, [string]$RelayPath, [string]$Scope, [string]$TokenStorePath, [string]$Runtime = "node") {
   Write-Step "Profile benchmark runner"
   Write-Host "This runner executes health + smoke + load-lite + log analysis." -ForegroundColor Cyan
   Write-Host ("Using relay path: {0}" -f $RelayPath) -ForegroundColor DarkGray
   Write-Host "IMPORTANT: this must be EXACTLY your foreign server inbound Path (for example: /api or /freedom)." -ForegroundColor Yellow
-  Run-HealthAndSmokeChecks -ProjectName $ProjectName -RelayPath $RelayPath
+  Run-HealthAndSmokeChecks -ProjectName $ProjectName -RelayPath $RelayPath -Runtime $Runtime
   $runLoad = Read-Default "Run load-test lite now? (y/N)" "n"
   if ($runLoad.ToLowerInvariant() -eq "y") {
     Run-LoadTestLite -ProjectName $ProjectName -RelayPath $RelayPath
+  }
+  if (([string]$Runtime).ToLowerInvariant() -eq "rewrite") {
+    Write-Host "Log analysis skipped: FAST_PIPE_REWRITE_SECURE uses Vercel rewrites and has no Node runtime logs." -ForegroundColor DarkYellow
+    return
   }
   $minutes = [int](Read-Default "Minutes window for log analysis" "5")
   $errs = Show-ProfessionalLogs -ProjectName $ProjectName -Scope $Scope -Minutes $minutes -TokenStorePath $TokenStorePath
@@ -2975,7 +4083,9 @@ function Set-VercelFunctionRegion([string]$Region) {
   $json = $raw | ConvertFrom-Json
   if ($null -eq $json.functions) { throw "vercel.json has no functions block." }
   if ($null -eq $json.functions.'api/index.js') { throw "vercel.json has no functions['api/index.js'] block." }
-  $json.functions.'api/index.js'.regions = @($Region)
+  $regions = Normalize-RegionList -RegionText $Region
+  if ($regions.Count -eq 0) { $regions = @("iad1") }
+  $json.functions.'api/index.js'.regions = @($regions)
   $updated = $json | ConvertTo-Json -Depth 20
   $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($path, $updated, $utf8NoBom)
@@ -2991,9 +4101,9 @@ function Run-RegionABCompare([string]$ProjectName, [string]$Scope, [string]$Rela
   Write-Host "This test deploys twice (Region A and Region B), then probes the same relay path." -ForegroundColor DarkGray
   Write-Host "How to read this table:" -ForegroundColor DarkGray
   Write-Host " - Lower DurationMs = usually faster region for your path." -ForegroundColor DarkGray
-  Write-Host " - Status 400 on probe is usually normal (raw probe, not full client frame)." -ForegroundColor DarkGray
-  Write-Host " - Status 404 means relay path mismatch." -ForegroundColor DarkGray
-  Write-Host " - Status >=500 means upstream/runtime pressure or timeout." -ForegroundColor DarkGray
+  Write-Host " - Status 400 usually means the path exists, but this quick probe is not a real client request." -ForegroundColor DarkGray
+  Write-Host " - Status 404 usually means the Path is wrong, for example /api does not match your inbound." -ForegroundColor DarkGray
+  Write-Host " - Status 500 or higher usually means the destination server/function returned an error." -ForegroundColor DarkGray
   $rp = Normalize-PathLike -PathValue $RelayPath
   $a = Read-Default "Region A" "iad1"
   $b = Read-Default "Region B" "fra1"
@@ -3047,34 +4157,52 @@ function Show-ManageMenu($selectedProjectName, $scope) {
   Write-Host ""
   Write-Host "[1] Select project from Vercel list"
   Write-Host "[2] Redeploy selected project"
-  Write-Host "[3] Update production env vars (selected project)"
+  Write-Host "[3] Update production ENV vars (choose project + editor)"
   Write-Host "[4] List recent deployments (selected project)"
   Write-Host "[5] Deploy as NEW project"
   Write-Host "[6] Run health + smoke checks"
-  Write-Host "[7] Show professional logs (translated/compact)"
+  Write-Host "[7] Show readable logs (summary + fixes)"
   Write-Host "[8] Run load-test lite"
   Write-Host "[9] ENV drift detector"
   Write-Host "[10] Profile benchmark runner"
-  Write-Host "[11] Live logs (translated/compact, press Q to stop)"
+  Write-Host "[11] Live readable logs (press Q to stop)"
   Write-Host "[12] View deployment ENV config (full)"
-  Write-Host "[13] Delete selected project (DANGER)"
-  Write-Host "[14] Exit"
+  Write-Host "[13] Delete Project (choose from list)"
+  Write-Host "[14] Billing / Usage monitor (REST API)"
+  Write-Host "[15] Exit"
   return (Read-Default "Choose action" "1")
 }
 
 function Run-ManagementLoop([string]$InitialScope) {
   $link = Get-LinkedProjectInfo -ProjectRoot $scriptDir
-  $scope = if (-not [string]::IsNullOrWhiteSpace($link.Scope)) { $link.Scope } else { $InitialScope }
-  $selectedProjectName = $link.ProjectName
+  # Do not trust stale local .vercel scope for first selection.
+  $scope = Normalize-ScopeForCli -Scope $InitialScope
+  $selectedProjectName = ""
+  $selectedRuntime = ""
+  $selectedDeployMode = ""
+  $selectedRelayPath = "/api"
 
-  if ([string]::IsNullOrWhiteSpace($selectedProjectName)) {
-    $firstChoice = Select-ProjectOrNewForFirstRun -Scope $scope
-    if ($firstChoice.Mode -eq "existing") {
-      $selectedProjectName = $firstChoice.ProjectName
-      Ensure-LinkedToProject -ProjectName $selectedProjectName -Scope $scope
-      Write-Host "Selected project: $selectedProjectName" -ForegroundColor Green
-    } else {
-      Run-NewDeploymentFlow -DefaultScope $scope
+  $firstChoice = Select-ProjectOrNewForFirstRun -Scope $scope -TokenStorePath $tokenStorePath
+  if ($firstChoice.Mode -eq "existing") {
+    $selectedProjectName = $firstChoice.ProjectName
+    if (-not [string]::IsNullOrWhiteSpace($firstChoice.Scope)) {
+      $scope = Normalize-ScopeForCli -Scope $firstChoice.Scope
+    }
+    Ensure-LinkedToProject -ProjectName $selectedProjectName -Scope $scope
+    $savedState = Load-LocalProjectDeployState -ProjectName $selectedProjectName
+    if ($null -ne $savedState) {
+      $selectedRuntime = [string]$savedState.Runtime
+      $selectedDeployMode = [string]$savedState.DeployMode
+      if (-not [string]::IsNullOrWhiteSpace([string]$savedState.RelayPath)) { $selectedRelayPath = [string]$savedState.RelayPath }
+    }
+    Write-Host "Selected project: $selectedProjectName" -ForegroundColor Green
+  } else {
+    $newCfg = Run-NewDeploymentFlow -DefaultScope $scope
+    if ($null -ne $newCfg) {
+      $selectedRuntime = [string]$newCfg.Runtime
+      $selectedDeployMode = [string]$newCfg.DeployMode
+      $selectedRelayPath = [string]$newCfg.PublicRelayPath
+      Save-LocalProjectDeployState -ProjectName ([string]$newCfg.ProjectName) -Scope ([string]$newCfg.Scope) -DeployMode $selectedDeployMode -Runtime $selectedRuntime -RelayPath $selectedRelayPath
       $link = Get-LinkedProjectInfo -ProjectRoot $scriptDir
       if ($link.ProjectName) { $selectedProjectName = $link.ProjectName }
       if ($link.Scope) { $scope = $link.Scope }
@@ -3087,7 +4215,7 @@ function Run-ManagementLoop([string]$InitialScope) {
     }
 
     $choice = Show-ManageMenu -selectedProjectName $selectedProjectName -scope $scope
-    if ($choice -eq "14") {
+    if ($choice -eq "15") {
       Write-Host "Exit."
       break
     }
@@ -3095,9 +4223,21 @@ function Run-ManagementLoop([string]$InitialScope) {
     try {
       switch ($choice) {
         "1" {
-          $selected = Select-ProjectFromList -Scope $scope
+          $selected = Select-ProjectFromList -Scope $scope -TokenStorePath $tokenStorePath
           if ($null -ne $selected) {
             $selectedProjectName = $selected.Name
+            if ($selected.PSObject.Properties.Name -contains "Scope" -and -not [string]::IsNullOrWhiteSpace([string]$selected.Scope)) {
+              $scope = Normalize-ScopeForCli -Scope ([string]$selected.Scope)
+            }
+            $selectedRuntime = ""
+            $selectedDeployMode = ""
+            $selectedRelayPath = "/api"
+            $savedState = Load-LocalProjectDeployState -ProjectName $selectedProjectName
+            if ($null -ne $savedState) {
+              $selectedRuntime = [string]$savedState.Runtime
+              $selectedDeployMode = [string]$savedState.DeployMode
+              if (-not [string]::IsNullOrWhiteSpace([string]$savedState.RelayPath)) { $selectedRelayPath = [string]$savedState.RelayPath }
+            }
             Write-Host "Selected project: $selectedProjectName" -ForegroundColor Green
             Ensure-LinkedToProject -ProjectName $selectedProjectName -Scope $scope
           }
@@ -3109,17 +4249,24 @@ function Run-ManagementLoop([string]$InitialScope) {
           }
           Ensure-LinkedToProject -ProjectName $selectedProjectName -Scope $scope
           $deployInfo = Deploy-Production -Scope $scope -Runtime "node"
+          $selectedRuntime = "node"
+          $selectedDeployMode = "NODE_REDEPLOY"
+          Save-LocalProjectDeployState -ProjectName $selectedProjectName -Scope $scope -DeployMode $selectedDeployMode -Runtime $selectedRuntime -RelayPath $selectedRelayPath
           Show-DeploySummary $deployInfo
           Write-Host "Done."
         }
         "3" {
-          if ([string]::IsNullOrWhiteSpace($selectedProjectName)) {
-            Write-Host "Select a project first (option 1)." -ForegroundColor Red
-            break
+          $updatedCfg = Run-UpdateEnvFlow -Scope $scope
+          if ($null -ne $updatedCfg) {
+            $selectedProjectName = [string]$updatedCfg.ProjectName
+            if ($updatedCfg.ContainsKey("Scope") -and -not [string]::IsNullOrWhiteSpace([string]$updatedCfg.Scope)) {
+              $scope = Normalize-ScopeForCli -Scope ([string]$updatedCfg.Scope)
+            }
+            $selectedRuntime = [string]$updatedCfg.Runtime
+            $selectedDeployMode = [string]$updatedCfg.DeployMode
+            $selectedRelayPath = [string]$updatedCfg.PublicRelayPath
+            Write-Host "Done."
           }
-          Ensure-LinkedToProject -ProjectName $selectedProjectName -Scope $scope
-          Run-UpdateEnvFlow -Scope $scope
-          Write-Host "Done."
         }
         "4" {
           if ([string]::IsNullOrWhiteSpace($selectedProjectName)) {
@@ -3130,25 +4277,38 @@ function Run-ManagementLoop([string]$InitialScope) {
           Write-Host "Done."
         }
         "5" {
-          Run-NewDeploymentFlow -DefaultScope $scope
-          $newLink = Get-LinkedProjectInfo -ProjectRoot $scriptDir
-          if ($newLink.ProjectName) { $selectedProjectName = $newLink.ProjectName }
-          if ($newLink.Scope) { $scope = $newLink.Scope }
+          $newCfg = Run-NewDeploymentFlow -DefaultScope $scope
+          if ($null -ne $newCfg) {
+            $selectedRuntime = [string]$newCfg.Runtime
+            $selectedDeployMode = [string]$newCfg.DeployMode
+            $selectedRelayPath = [string]$newCfg.PublicRelayPath
+            Save-LocalProjectDeployState -ProjectName ([string]$newCfg.ProjectName) -Scope ([string]$newCfg.Scope) -DeployMode $selectedDeployMode -Runtime $selectedRuntime -RelayPath $selectedRelayPath
+            $newLink = Get-LinkedProjectInfo -ProjectRoot $scriptDir
+            if ($newLink.ProjectName) { $selectedProjectName = $newLink.ProjectName }
+            if ($newLink.Scope) { $scope = $newLink.Scope }
+          }
         }
         "6" {
           if ([string]::IsNullOrWhiteSpace($selectedProjectName)) {
             Write-Host "Select a project first (option 1)." -ForegroundColor Red
             break
           }
-          $rp = Read-Default "Relay path for checks" "/api"
-          Run-HealthAndSmokeChecks -ProjectName $selectedProjectName -RelayPath $rp
+          $rp = Read-Default "Relay path for checks (0 = Back)" $selectedRelayPath
+          if ($rp -eq "0") { break }
+          Run-HealthAndSmokeChecks -ProjectName $selectedProjectName -RelayPath $rp -Runtime $selectedRuntime
         }
         "7" {
           if ([string]::IsNullOrWhiteSpace($selectedProjectName)) {
             Write-Host "Select a project first (option 1)." -ForegroundColor Red
             break
           }
-          $mins = [int](Read-Default "Minutes window" "5")
+          if ($selectedRuntime -eq "rewrite" -or $selectedDeployMode -eq "FAST_PIPE_REWRITE_SECURE") {
+            Write-Host "Logs skipped: FAST_PIPE_REWRITE_SECURE uses Vercel rewrites and has no Node runtime logs." -ForegroundColor DarkYellow
+            break
+          }
+          $minsRaw = Read-Default "Minutes window (0 = Back)" "5"
+          if ($minsRaw -eq "0") { break }
+          $mins = [int]$minsRaw
           $errs = Show-ProfessionalLogs -ProjectName $selectedProjectName -Scope $scope -Minutes $mins -TokenStorePath $tokenStorePath
           $logTexts = @()
           foreach ($e in $errs) { $logTexts += [string]$e.text }
@@ -3166,7 +4326,9 @@ function Run-ManagementLoop([string]$InitialScope) {
             break
           }
           Write-Host "Enter your EXACT inbound Path from foreign server (must start with '/')." -ForegroundColor Yellow
-          $rp = Normalize-PathLike -PathValue (Read-Required "Relay path for load test (example: /api or /freedom)")
+          $rpRaw = Read-Default "Relay path for load test (example: /api or /freedom, 0 = Back)" $selectedRelayPath
+          if ($rpRaw -eq "0") { break }
+          $rp = Normalize-PathLike -PathValue $rpRaw
           Run-LoadTestLite -ProjectName $selectedProjectName -RelayPath $rp
         }
         "9" {
@@ -3182,12 +4344,18 @@ function Run-ManagementLoop([string]$InitialScope) {
             break
           }
           Write-Host "IMPORTANT: enter your EXACT foreign server inbound Path (with leading '/')." -ForegroundColor Yellow
-          $rp = Normalize-PathLike -PathValue (Read-Required "Relay path for benchmark (example: /api or /freedom)")
-          Run-ProfileBenchmark -ProjectName $selectedProjectName -RelayPath $rp -Scope $scope -TokenStorePath $tokenStorePath
+          $rpRaw = Read-Default "Relay path for benchmark (example: /api or /freedom, 0 = Back)" $selectedRelayPath
+          if ($rpRaw -eq "0") { break }
+          $rp = Normalize-PathLike -PathValue $rpRaw
+          Run-ProfileBenchmark -ProjectName $selectedProjectName -RelayPath $rp -Scope $scope -TokenStorePath $tokenStorePath -Runtime $selectedRuntime
         }
         "11" {
           if ([string]::IsNullOrWhiteSpace($selectedProjectName)) {
             Write-Host "Select a project first (option 1)." -ForegroundColor Red
+            break
+          }
+          if ($selectedRuntime -eq "rewrite" -or $selectedDeployMode -eq "FAST_PIPE_REWRITE_SECURE") {
+            Write-Host "Live logs skipped: FAST_PIPE_REWRITE_SECURE uses Vercel rewrites and has no Node runtime logs." -ForegroundColor DarkYellow
             break
           }
           Start-LiveLogsTranslated -ProjectName $selectedProjectName -Scope $scope -TokenStorePath $tokenStorePath
@@ -3200,16 +4368,54 @@ function Run-ManagementLoop([string]$InitialScope) {
           Show-DeploymentEnvConfig -ProjectName $selectedProjectName -Scope $scope -TokenStorePath $tokenStorePath
         }
         "13" {
-          if ([string]::IsNullOrWhiteSpace($selectedProjectName)) {
-            Write-Host "Select a project first (option 1)." -ForegroundColor Red
-            break
-          }
-          $deleted = Remove-SelectedProject -ProjectName $selectedProjectName -Scope $scope -TokenStorePath $tokenStorePath
-          if ($deleted) {
+          $deleteResult = Run-DeleteProjectFlow -Scope $scope -TokenStorePath $tokenStorePath
+          if ($deleteResult.Deleted) {
+            if ([string]$deleteResult.ProjectName -eq $selectedProjectName) {
+              $selectedRuntime = ""
+              $selectedDeployMode = ""
+              $selectedRelayPath = "/api"
+            }
             $selectedProjectName = ""
+            if ($deleteResult.ContainsKey("Scope") -and -not [string]::IsNullOrWhiteSpace([string]$deleteResult.Scope)) {
+              $scope = Normalize-ScopeForCli -Scope ([string]$deleteResult.Scope)
+            }
             Write-Host ""
-            Write-Host "Project removed. Select another project (option 1) or deploy a new one (option 5)." -ForegroundColor Yellow
+            Write-Host "Project removed. Now choose another project or deploy a new one." -ForegroundColor Yellow
+
+            $nextChoice = Select-ProjectOrNewAfterDelete -Scope $scope -TokenStorePath $tokenStorePath
+            if ($null -eq $nextChoice) { break }
+            if ($nextChoice.Mode -eq "existing") {
+              $selectedProjectName = [string]$nextChoice.ProjectName
+              if (-not [string]::IsNullOrWhiteSpace([string]$nextChoice.Scope)) {
+                $scope = Normalize-ScopeForCli -Scope ([string]$nextChoice.Scope)
+              }
+              Ensure-LinkedToProject -ProjectName $selectedProjectName -Scope $scope
+              $selectedRuntime = ""
+              $selectedDeployMode = ""
+              $selectedRelayPath = "/api"
+              $savedState = Load-LocalProjectDeployState -ProjectName $selectedProjectName
+              if ($null -ne $savedState) {
+                $selectedRuntime = [string]$savedState.Runtime
+                $selectedDeployMode = [string]$savedState.DeployMode
+                if (-not [string]::IsNullOrWhiteSpace([string]$savedState.RelayPath)) { $selectedRelayPath = [string]$savedState.RelayPath }
+              }
+              Write-Host ("Selected project: {0}" -f $selectedProjectName) -ForegroundColor Green
+            } elseif ($nextChoice.Mode -eq "new") {
+              $newCfg = Run-NewDeploymentFlow -DefaultScope $scope
+              if ($null -ne $newCfg) {
+                $selectedRuntime = [string]$newCfg.Runtime
+                $selectedDeployMode = [string]$newCfg.DeployMode
+                $selectedRelayPath = [string]$newCfg.PublicRelayPath
+                Save-LocalProjectDeployState -ProjectName ([string]$newCfg.ProjectName) -Scope ([string]$newCfg.Scope) -DeployMode $selectedDeployMode -Runtime $selectedRuntime -RelayPath $selectedRelayPath
+                $newLink = Get-LinkedProjectInfo -ProjectRoot $scriptDir
+                if ($newLink.ProjectName) { $selectedProjectName = $newLink.ProjectName }
+                if ($newLink.Scope) { $scope = $newLink.Scope }
+              }
+            }
           }
+        }
+        "14" {
+          Show-BillingUsageMonitor -ProjectName $selectedProjectName -Scope $scope -TokenStorePath $tokenStorePath
         }
         default {
           Write-Host "Invalid option." -ForegroundColor Red
